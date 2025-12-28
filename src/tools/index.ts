@@ -12,3 +12,4 @@ export * from './daily-notes.js';
 export * from './templates.js';
 export * from './bases.js';
 export * from './batch.js';
+export * from './attachments.js';

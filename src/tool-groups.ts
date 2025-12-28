@@ -32,6 +32,7 @@ import {
   templateTools,
   basesTools,
   batchTools,
+  attachmentTools,
 } from './tools/index.js';
 
 export type ToolGroup =
@@ -44,7 +45,8 @@ export type ToolGroup =
   | 'daily'
   | 'templates'
   | 'bases'
-  | 'batch';
+  | 'batch'
+  | 'attachments';
 
 export const ALL_GROUPS: ToolGroup[] = [
   'vault',
@@ -57,6 +59,7 @@ export const ALL_GROUPS: ToolGroup[] = [
   'templates',
   'bases',
   'batch',
+  'attachments',
 ];
 
 // Map group names to their tools
@@ -71,6 +74,7 @@ const toolGroupMap: Record<ToolGroup, unknown[]> = {
   templates: templateTools,
   bases: basesTools,
   batch: batchTools,
+  attachments: attachmentTools,
 };
 
 // Map tool names to their groups (for validation in call handler)
@@ -126,6 +130,11 @@ const toolToGroupMap: Record<string, ToolGroup> = {
   batch_update_frontmatter: 'batch',
   batch_add_tag: 'batch',
   batch_remove_tag: 'batch',
+  // Attachments
+  list_attachments: 'attachments',
+  get_attachment_info: 'attachments',
+  find_unused_attachments: 'attachments',
+  get_attachments_in_note: 'attachments',
 };
 
 let enabledGroups: Set<ToolGroup> = new Set(ALL_GROUPS);
@@ -227,6 +236,7 @@ Available tool groups:
   templates   - Templates (list_templates, get_template, apply_template, create_from_template)
   bases       - Obsidian Bases (list_bases, get_base, query_base)
   batch       - Batch operations (batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag)
+  attachments - Attachment management (list_attachments, get_attachment_info, find_unused_attachments, get_attachments_in_note)
 
 Special values:
   all         - Enable all groups (default)

@@ -119,6 +119,17 @@ import {
   batchRemoveTagSchema,
   batchTools,
 } from './tools/batch.js';
+import {
+  handleListAttachments,
+  handleGetAttachmentInfo,
+  handleFindUnusedAttachments,
+  handleGetAttachmentsInNote,
+  listAttachmentsSchema,
+  getAttachmentInfoSchema,
+  findUnusedAttachmentsSchema,
+  getAttachmentsInNoteSchema,
+  attachmentTools,
+} from './tools/attachments.js';
 
 // Import config and tool groups
 import { registerVault } from './services/vault-manager.js';
@@ -342,6 +353,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'batch_remove_tag':
       return handleBatchRemoveTag(batchRemoveTagSchema.parse(args));
+
+    // Attachment tools
+    case 'list_attachments':
+      return handleListAttachments(listAttachmentsSchema.parse(args));
+
+    case 'get_attachment_info':
+      return handleGetAttachmentInfo(getAttachmentInfoSchema.parse(args));
+
+    case 'find_unused_attachments':
+      return handleFindUnusedAttachments(findUnusedAttachmentsSchema.parse(args));
+
+    case 'get_attachments_in_note':
+      return handleGetAttachmentsInNote(getAttachmentsInNoteSchema.parse(args));
 
     default:
       return {
