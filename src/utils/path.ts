@@ -3,11 +3,12 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 import { PathTraversalError, InvalidPathError } from './errors.js';
 
 /**
  * Validates that a path is safe (no path traversal attacks)
- * and normalizes it
+ * and normalizes it. Also resolves symlinks to prevent symlink escape attacks.
  */
 export function validatePath(inputPath: string, basePath: string): string {
   // Normalize the input path
@@ -16,13 +17,57 @@ export function validatePath(inputPath: string, basePath: string): string {
   // Resolve to absolute path within base
   const fullPath = path.resolve(basePath, normalizedInput);
 
-  // Ensure the resolved path is within the base path
+  // Ensure the resolved path is within the base path (initial check)
   const normalizedBase = path.normalize(basePath);
   if (!fullPath.startsWith(normalizedBase + path.sep) && fullPath !== normalizedBase) {
     throw new PathTraversalError(inputPath);
   }
 
-  return fullPath;
+  // Resolve symlinks to prevent symlink escape attacks
+  // We need to handle the case where the file doesn't exist yet (for create operations)
+  try {
+    // Get the real path of the base (should always exist)
+    const realBase = fs.realpathSync(basePath);
+
+    // For the target path, we need to check if it exists
+    // If it does, resolve it fully; if not, resolve the parent directory
+    let realFullPath: string;
+    try {
+      realFullPath = fs.realpathSync(fullPath);
+    } catch {
+      // File doesn't exist yet - resolve the parent directory instead
+      const parentDir = path.dirname(fullPath);
+      try {
+        const realParent = fs.realpathSync(parentDir);
+        // Verify parent is within base
+        if (!realParent.startsWith(realBase + path.sep) && realParent !== realBase) {
+          throw new PathTraversalError(inputPath);
+        }
+        // Return the original fullPath since the file doesn't exist yet
+        // but its parent directory is valid
+        return fullPath;
+      } catch {
+        // Parent directory doesn't exist either - that's okay for nested creates
+        // The initial path check already validated the logical path
+        return fullPath;
+      }
+    }
+
+    // Verify the resolved real path is still within the real base path
+    if (!realFullPath.startsWith(realBase + path.sep) && realFullPath !== realBase) {
+      throw new PathTraversalError(inputPath);
+    }
+
+    return realFullPath;
+  } catch (error) {
+    // If it's already a PathTraversalError, rethrow it
+    if (error instanceof PathTraversalError) {
+      throw error;
+    }
+    // For other errors (e.g., base path doesn't exist), fall back to logical path
+    // This maintains backwards compatibility
+    return fullPath;
+  }
 }
 
 /**

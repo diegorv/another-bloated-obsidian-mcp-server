@@ -7,7 +7,83 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
 import { validatePath, getRelativePath, shouldIgnorePath } from '../utils/path.js';
+
+/**
+ * Zod schemas for validating .base file JSON structures
+ * These prevent prototype pollution and ensure data integrity
+ */
+const baseColumnSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  options: z.unknown().optional(),
+}).passthrough();
+
+// Schema for rows that already have id and values structure
+const structuredRowSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  values: z.record(z.unknown()),
+}).passthrough();
+
+// Schema for standard format with columns and rows (with id/values structure)
+const standardBaseWithStructuredRowsSchema = z.object({
+  columns: z.array(baseColumnSchema),
+  rows: z.array(structuredRowSchema),
+}).passthrough();
+
+// Schema for standard format with columns and simple rows (values only)
+const standardBaseWithSimpleRowsSchema = z.object({
+  columns: z.array(baseColumnSchema),
+  rows: z.array(z.record(z.unknown())),
+}).passthrough();
+
+// Schema for schema + data format
+const schemaDataBaseSchema = z.object({
+  schema: z.object({
+    columns: z.array(baseColumnSchema).optional(),
+  }).passthrough(),
+  data: z.array(z.record(z.unknown())).optional(),
+}).passthrough();
+
+/**
+ * Safely parses JSON and validates it's a plain object or array
+ * Prevents prototype pollution attacks
+ */
+function safeJsonParse(content: string): unknown {
+  const parsed = JSON.parse(content);
+
+  // Reject if null or primitive
+  if (parsed === null || typeof parsed !== 'object') {
+    return parsed;
+  }
+
+  // Check for prototype pollution attempts
+  const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+
+  function checkForDangerousKeys(obj: unknown, depth = 0): void {
+    // Prevent deep recursion attacks
+    if (depth > 10) return;
+
+    if (obj === null || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        checkForDangerousKeys(item, depth + 1);
+      }
+    } else {
+      for (const key of Object.keys(obj)) {
+        if (dangerousKeys.includes(key)) {
+          throw new Error(`Potentially malicious key "${key}" detected in .base file`);
+        }
+        checkForDangerousKeys((obj as Record<string, unknown>)[key], depth + 1);
+      }
+    }
+  }
+
+  checkForDangerousKeys(parsed);
+  return parsed;
+}
 
 export interface BaseColumn {
   name: string;
@@ -74,37 +150,69 @@ export async function parseBase(vaultPath: string, basePath: string): Promise<Ba
 
   try {
     // Try to parse as JSON (common format for database files)
-    const data = JSON.parse(content);
+    // Use safeJsonParse to prevent prototype pollution attacks
+    const data = safeJsonParse(content);
 
     // Handle different possible formats
     if (Array.isArray(data)) {
-      // Array of rows format
-      const columns = inferColumnsFromRows(data);
-      const rows = data.map((row, index) => ({
+      // Array of rows format - validate each row is a record
+      const validatedRows = data.filter(
+        (row): row is Record<string, unknown> =>
+          row !== null && typeof row === 'object' && !Array.isArray(row)
+      );
+      const columns = inferColumnsFromRows(validatedRows);
+      const rows = validatedRows.map((row, index) => ({
         id: String(index),
         values: row,
       }));
       return { name, path: relativePath, columns, rows };
     }
 
-    if (data.columns && data.rows) {
-      // Standard format with columns and rows
+    // Ensure data is an object for the remaining checks
+    if (data === null || typeof data !== 'object') {
+      return parseStructuredText(content, name, relativePath);
+    }
+
+    const dataObj = data as Record<string, unknown>;
+
+    // Try to validate as standard format with structured rows (id + values)
+    const structuredResult = standardBaseWithStructuredRowsSchema.safeParse(dataObj);
+    if (structuredResult.success) {
       return {
         name,
         path: relativePath,
-        columns: data.columns,
-        rows: data.rows,
+        columns: structuredResult.data.columns,
+        rows: structuredResult.data.rows.map((row) => ({
+          id: String(row.id),
+          values: row.values,
+        })),
       };
     }
 
-    if (data.schema && data.data) {
-      // Schema + data format
+    // Try to validate as standard format with simple rows (values only)
+    const simpleResult = standardBaseWithSimpleRowsSchema.safeParse(dataObj);
+    if (simpleResult.success) {
       return {
         name,
         path: relativePath,
-        columns: data.schema.columns || [],
-        rows: (data.data || []).map((row: Record<string, unknown>, index: number) => ({
-          id: String(row.id || index),
+        columns: simpleResult.data.columns,
+        rows: simpleResult.data.rows.map((row: Record<string, unknown>, index: number) => ({
+          id: String(index),
+          values: row,
+        })),
+      };
+    }
+
+    // Try to validate as schema + data format
+    const schemaDataResult = schemaDataBaseSchema.safeParse(dataObj);
+    if (schemaDataResult.success) {
+      const { schema, data: rowsData } = schemaDataResult.data;
+      return {
+        name,
+        path: relativePath,
+        columns: schema.columns || [],
+        rows: (rowsData || []).map((row: Record<string, unknown>, index: number) => ({
+          id: String((row as Record<string, unknown>).id || index),
           values: row,
         })),
       };
@@ -114,10 +222,14 @@ export async function parseBase(vaultPath: string, basePath: string): Promise<Ba
     return {
       name,
       path: relativePath,
-      columns: inferColumnsFromRows([data]),
-      rows: [{ id: '0', values: data }],
+      columns: inferColumnsFromRows([dataObj]),
+      rows: [{ id: '0', values: dataObj }],
     };
-  } catch {
+  } catch (error) {
+    // Re-throw security-related errors (prototype pollution, etc.)
+    if (error instanceof Error && error.message.includes('malicious')) {
+      throw error;
+    }
     // If not JSON, try to parse as structured text
     return parseStructuredText(content, name, relativePath);
   }
