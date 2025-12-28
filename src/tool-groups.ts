@@ -31,6 +31,7 @@ import {
   dailyNotesTools,
   templateTools,
   basesTools,
+  batchTools,
 } from './tools/index.js';
 
 export type ToolGroup =
@@ -42,7 +43,8 @@ export type ToolGroup =
   | 'links'
   | 'daily'
   | 'templates'
-  | 'bases';
+  | 'bases'
+  | 'batch';
 
 export const ALL_GROUPS: ToolGroup[] = [
   'vault',
@@ -54,6 +56,7 @@ export const ALL_GROUPS: ToolGroup[] = [
   'daily',
   'templates',
   'bases',
+  'batch',
 ];
 
 // Map group names to their tools
@@ -67,6 +70,7 @@ const toolGroupMap: Record<ToolGroup, unknown[]> = {
   daily: dailyNotesTools,
   templates: templateTools,
   bases: basesTools,
+  batch: batchTools,
 };
 
 // Map tool names to their groups (for validation in call handler)
@@ -81,11 +85,16 @@ const toolToGroupMap: Record<string, ToolGroup> = {
   create_note: 'notes',
   update_note: 'notes',
   delete_note: 'notes',
+  rename_note: 'notes',
+  move_note: 'notes',
   // Search
   search_vault: 'search',
   // Frontmatter
   get_frontmatter: 'frontmatter',
   update_frontmatter: 'frontmatter',
+  remove_frontmatter_field: 'frontmatter',
+  add_to_array_field: 'frontmatter',
+  remove_from_array_field: 'frontmatter',
   // Tags
   list_tags: 'tags',
   add_tag: 'tags',
@@ -111,6 +120,12 @@ const toolToGroupMap: Record<string, ToolGroup> = {
   list_bases: 'bases',
   get_base: 'bases',
   query_base: 'bases',
+  // Batch
+  batch_move: 'batch',
+  batch_delete: 'batch',
+  batch_update_frontmatter: 'batch',
+  batch_add_tag: 'batch',
+  batch_remove_tag: 'batch',
 };
 
 let enabledGroups: Set<ToolGroup> = new Set(ALL_GROUPS);
@@ -203,14 +218,15 @@ export function getGroupsHelp(): string {
   return `
 Available tool groups:
   vault       - Vault management (list_vaults, set_active_vault, register_vault)
-  notes       - Note CRUD (list_notes, read_note, create_note, update_note, delete_note)
+  notes       - Note CRUD (list_notes, read_note, create_note, update_note, delete_note, rename_note, move_note)
   search      - Search (search_vault)
-  frontmatter - Frontmatter manipulation (get_frontmatter, update_frontmatter)
+  frontmatter - Frontmatter manipulation (get_frontmatter, update_frontmatter, remove_frontmatter_field, add_to_array_field, remove_from_array_field)
   tags        - Tag management (list_tags, add_tag, remove_tag, search_by_tag)
   links       - Link analysis (get_outlinks, get_backlinks, find_orphans, find_broken_links, get_link_graph)
   daily       - Daily notes (get_daily_note, create_daily_note, list_daily_notes, append_to_daily)
   templates   - Templates (list_templates, get_template, apply_template, create_from_template)
   bases       - Obsidian Bases (list_bases, get_base, query_base)
+  batch       - Batch operations (batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag)
 
 Special values:
   all         - Enable all groups (default)

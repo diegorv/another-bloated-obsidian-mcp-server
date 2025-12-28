@@ -106,6 +106,19 @@ import {
   getBaseSchema,
   queryBaseSchema,
 } from './tools/bases.js';
+import {
+  handleBatchMove,
+  handleBatchDelete,
+  handleBatchUpdateFrontmatter,
+  handleBatchAddTag,
+  handleBatchRemoveTag,
+  batchMoveSchema,
+  batchDeleteSchema,
+  batchUpdateFrontmatterSchema,
+  batchAddTagSchema,
+  batchRemoveTagSchema,
+  batchTools,
+} from './tools/batch.js';
 
 // Import config and tool groups
 import { registerVault } from './services/vault-manager.js';
@@ -313,6 +326,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'query_base':
       return handleQueryBase(queryBaseSchema.parse(args));
+
+    // Batch tools
+    case 'batch_move':
+      return handleBatchMove(batchMoveSchema.parse(args));
+
+    case 'batch_delete':
+      return handleBatchDelete(batchDeleteSchema.parse(args));
+
+    case 'batch_update_frontmatter':
+      return handleBatchUpdateFrontmatter(batchUpdateFrontmatterSchema.parse(args));
+
+    case 'batch_add_tag':
+      return handleBatchAddTag(batchAddTagSchema.parse(args));
+
+    case 'batch_remove_tag':
+      return handleBatchRemoveTag(batchRemoveTagSchema.parse(args));
 
     default:
       return {
