@@ -23,6 +23,29 @@ const configSchema = z.object({
 });
 
 /**
+ * Validates that a relative path is safe (no path traversal)
+ * Returns true if path is safe, false if it contains traversal attempts
+ */
+function isSafeRelativePath(relativePath: string): boolean {
+  if (!relativePath) return true;
+
+  // Reject absolute paths
+  if (path.isAbsolute(relativePath)) {
+    return false;
+  }
+
+  // Normalize and check for path traversal
+  const normalized = path.normalize(relativePath);
+
+  // Reject if it starts with .. or contains ../ or ..\
+  if (normalized.startsWith('..') || normalized.includes('../') || normalized.includes('..\\')) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Validates that a vault path exists and is a directory
  * Also checks for .obsidian folder to confirm it's a valid vault
  */
@@ -78,10 +101,20 @@ function validateAndSanitizeConfig(rawConfig: unknown): Config {
     defaultVault = vaultNames[0] || '';
   }
 
+  // Sanitize options - validate templatesFolder doesn't contain path traversal
+  let options = config.options || DEFAULT_CONFIG.options;
+  if (options && !isSafeRelativePath(options.templatesFolder)) {
+    // Reset to default if templatesFolder contains path traversal
+    options = {
+      ...options,
+      templatesFolder: DEFAULT_CONFIG.options.templatesFolder,
+    };
+  }
+
   return {
     vaults: validVaults,
     defaultVault,
-    options: config.options || DEFAULT_CONFIG.options,
+    options,
   };
 }
 
