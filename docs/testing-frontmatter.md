@@ -76,6 +76,114 @@ Expected: All fields are added/updated in the frontmatter.
 
 ---
 
+---
+
+## Test 8: Remove Frontmatter Field
+
+```
+Tool: remove_frontmatter_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "draft"
+}
+```
+
+Expected:
+- Field "draft" removed
+- `removed: true` (if existed) or `false` (if didn't exist)
+
+---
+
+## Test 9: Add to Array Field - Add Tags
+
+```
+Tool: add_to_array_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "tags",
+  "values": ["new-tag", "another-tag"]
+}
+```
+
+Expected:
+- Tags added to array
+- Duplicates ignored
+- `added: ["new-tag", "another-tag"]`
+
+---
+
+## Test 10: Add to Array Field - Create New Field
+
+```
+Tool: add_to_array_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "aliases",
+  "values": ["alias1"],
+  "createIfMissing": true
+}
+```
+
+Expected: Field "aliases" created with value `["alias1"]`.
+
+---
+
+## Test 11: Add to Array Field - Field Doesn't Exist, createIfMissing=false
+
+```
+Tool: add_to_array_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "nonexistent",
+  "values": ["value"],
+  "createIfMissing": false
+}
+```
+
+Expected: Error - Field does not exist.
+
+---
+
+## Test 12: Add to Array Field - Field Is Not Array (Error)
+
+```
+Preparation: Note with frontmatter { title: "string" }
+
+Tool: add_to_array_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "title",
+  "values": ["new"]
+}
+```
+
+Expected: Error - Field is not an array.
+
+---
+
+## Test 13: Remove from Array Field
+
+```
+Tool: remove_from_array_field
+Parameters:
+{
+  "path": "note.md",
+  "field": "tags",
+  "values": ["tag-to-remove"]
+}
+```
+
+Expected:
+- Tag removed from array
+- `removed: ["tag-to-remove"]`
+
+---
+
 ## Full Flow Test
 
 ```

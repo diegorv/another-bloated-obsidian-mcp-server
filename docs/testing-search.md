@@ -72,6 +72,71 @@ Expected: Returns notes that contain internal links.
 
 ---
 
+---
+
+## Test 8: Advanced Search - Simple Regex
+
+```
+Tool: search_vault
+Parameters:
+{
+  "query": "\\d{4}-\\d{2}-\\d{2}",
+  "useRegex": true
+}
+```
+
+Expected: Finds all dates in YYYY-MM-DD format.
+
+---
+
+## Test 9: Advanced Search - Regex with Case Sensitive
+
+```
+Tool: search_vault
+Parameters:
+{
+  "query": "TODO|FIXME|HACK",
+  "useRegex": true,
+  "caseSensitive": true
+}
+```
+
+Expected: Finds only uppercase occurrences.
+
+---
+
+## Test 10: Advanced Search - With Context Lines
+
+```
+Tool: search_vault
+Parameters:
+{
+  "query": "important",
+  "contextLines": 2
+}
+```
+
+Expected:
+- Each match includes `contextBefore` and `contextAfter`
+- Up to 2 lines before and after
+
+---
+
+## Test 11: Advanced Search - Invalid Regex (Error)
+
+```
+Tool: search_vault
+Parameters:
+{
+  "query": "[invalid(regex",
+  "useRegex": true
+}
+```
+
+Expected: Error - Invalid regex pattern.
+
+---
+
 ## Full Flow Test
 
 ```
