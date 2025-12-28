@@ -34,11 +34,13 @@ import {
   handleCreateNote,
   handleUpdateNote,
   handleDeleteNote,
+  handleRenameNote,
   listNotesSchema,
   readNoteSchema,
   createNoteSchema,
   updateNoteSchema,
   deleteNoteSchema,
+  renameNoteSchema,
 } from './tools/notes.js';
 import {
   handleSearchVault,
@@ -212,6 +214,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'delete_note':
       return handleDeleteNote(deleteNoteSchema.parse(args));
+
+    case 'rename_note':
+      return handleRenameNote(renameNoteSchema.parse(args));
 
     // Search tools
     case 'search_vault':

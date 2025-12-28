@@ -234,6 +234,123 @@ export async function deleteNote(vaultPath: string, notePath: string): Promise<v
 }
 
 /**
+ * Renames a note and optionally updates internal links
+ * @returns Number of links updated in other notes
+ */
+export async function renameNote(
+  vaultPath: string,
+  oldPath: string,
+  newPath: string,
+  updateLinks = true
+): Promise<number> {
+  const oldFullPath = validatePath(ensureMarkdownExtension(oldPath), vaultPath);
+  const newFullPath = validatePath(ensureMarkdownExtension(newPath), vaultPath);
+
+  // Check if source note exists
+  try {
+    await fs.access(oldFullPath);
+  } catch {
+    throw new NoteNotFoundError(oldPath);
+  }
+
+  // Check if destination already exists
+  try {
+    await fs.access(newFullPath);
+    throw new NoteAlreadyExistsError(newPath);
+  } catch (error) {
+    if (error instanceof NoteAlreadyExistsError) {
+      throw error;
+    }
+    // ENOENT is expected - destination should not exist
+  }
+
+  // Ensure parent directory of destination exists
+  await fs.mkdir(path.dirname(newFullPath), { recursive: true });
+
+  // Rename the file
+  await fs.rename(oldFullPath, newFullPath);
+
+  // Update internal links if requested
+  let linksUpdated = 0;
+  if (updateLinks) {
+    linksUpdated = await updateInternalLinks(vaultPath, oldPath, newPath);
+  }
+
+  return linksUpdated;
+}
+
+/**
+ * Updates internal wikilinks in all notes that reference the old path
+ */
+async function updateInternalLinks(
+  vaultPath: string,
+  oldPath: string,
+  newPath: string
+): Promise<number> {
+  const notes = await listNotes(vaultPath, undefined, true);
+  let totalUpdated = 0;
+
+  // Get the note names without extension for wikilink matching
+  const oldName = path.basename(oldPath, '.md');
+  const newName = path.basename(newPath, '.md');
+  const oldPathWithoutExt = oldPath.replace(/\.md$/, '');
+  const newPathWithoutExt = newPath.replace(/\.md$/, '');
+
+  for (const note of notes) {
+    const notePath = note.path;
+    const fullPath = validatePath(notePath, vaultPath);
+
+    try {
+      const content = await fs.readFile(fullPath, 'utf-8');
+      let newContent = content;
+      let updated = false;
+
+      // Match wikilinks: [[note]] or [[note|alias]] or [[path/to/note]] or [[path/to/note|alias]]
+      // Also handle links with full path
+      const wikiLinkPatterns = [
+        // Exact match for full path (without extension)
+        new RegExp(`\\[\\[${escapeRegex(oldPathWithoutExt)}(\\|[^\\]]*)?\\]\\]`, 'g'),
+        // Match just the note name (for notes in same folder or when path is omitted)
+        new RegExp(`\\[\\[${escapeRegex(oldName)}(\\|[^\\]]*)?\\]\\]`, 'g'),
+      ];
+
+      for (const pattern of wikiLinkPatterns) {
+        if (pattern.test(newContent)) {
+          // Replace with appropriate new reference
+          newContent = newContent.replace(pattern, (match, alias) => {
+            if (match.includes('/')) {
+              // Full path link
+              return `[[${newPathWithoutExt}${alias || ''}]]`;
+            } else {
+              // Simple name link
+              return `[[${newName}${alias || ''}]]`;
+            }
+          });
+          updated = true;
+        }
+      }
+
+      if (updated && newContent !== content) {
+        await fs.writeFile(fullPath, newContent, 'utf-8');
+        totalUpdated++;
+      }
+    } catch {
+      // Skip files that can't be read
+      continue;
+    }
+  }
+
+  return totalUpdated;
+}
+
+/**
+ * Escapes special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Checks if a note exists
  */
 export async function noteExists(vaultPath: string, notePath: string): Promise<boolean> {

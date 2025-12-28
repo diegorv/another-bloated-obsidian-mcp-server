@@ -9,6 +9,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  renameNote,
 } from '../services/filesystem.js';
 import { getActiveVaultPath } from '../services/vault-manager.js';
 import { formatError } from '../utils/errors.js';
@@ -45,6 +46,12 @@ export const updateNoteSchema = z.object({
 
 export const deleteNoteSchema = z.object({
   path: z.string().describe('Path to the note to delete (relative to vault root)'),
+});
+
+export const renameNoteSchema = z.object({
+  oldPath: z.string().describe('Current path of the note (relative to vault root)'),
+  newPath: z.string().describe('New path for the note (relative to vault root)'),
+  updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes that reference this note'),
 });
 
 // Tool implementations
@@ -224,6 +231,42 @@ export async function handleDeleteNote(args: z.infer<typeof deleteNoteSchema>) {
   }
 }
 
+export async function handleRenameNote(args: z.infer<typeof renameNoteSchema>) {
+  try {
+    const vaultPath = await getActiveVaultPath();
+    const linksUpdated = await renameNote(
+      vaultPath,
+      args.oldPath,
+      args.newPath,
+      args.updateLinks
+    );
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            oldPath: args.oldPath,
+            newPath: args.newPath,
+            linksUpdated,
+          }),
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ success: false, error: formatError(error) }),
+        },
+      ],
+      isError: true,
+    };
+  }
+}
+
 // Tool definitions for MCP
 export const noteTools = [
   {
@@ -341,6 +384,30 @@ export const noteTools = [
         },
       },
       required: ['path'],
+    },
+  },
+  {
+    name: 'rename_note',
+    description:
+      'Rename a note and optionally update all wikilinks that reference it. Returns the count of notes with updated links.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        oldPath: {
+          type: 'string',
+          description: 'Current path of the note (e.g., "Projects/OldName.md")',
+        },
+        newPath: {
+          type: 'string',
+          description: 'New path for the note (e.g., "Projects/NewName.md")',
+        },
+        updateLinks: {
+          type: 'boolean',
+          description: 'Update wikilinks in other notes that reference this note (default: true)',
+          default: true,
+        },
+      },
+      required: ['oldPath', 'newPath'],
     },
   },
 ];
