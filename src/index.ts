@@ -5,6 +5,12 @@
  *
  * A Model Context Protocol server that provides AI assistants
  * with access to Obsidian vaults.
+ *
+ * Tool groups can be configured via:
+ * - CLI: --tools=vault,notes,search
+ * - Environment: OBSIDIAN_MCP_TOOLS=vault,notes,search
+ *
+ * Run with --help for more information.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -14,9 +20,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-// Import tools
+// Import tool handlers
 import {
-  vaultTools,
   handleListVaults,
   handleSetActiveVault,
   handleRegisterVault,
@@ -24,7 +29,6 @@ import {
   registerVaultSchema,
 } from './tools/vault.js';
 import {
-  noteTools,
   handleListNotes,
   handleReadNote,
   handleCreateNote,
@@ -37,19 +41,16 @@ import {
   deleteNoteSchema,
 } from './tools/notes.js';
 import {
-  searchTools,
   handleSearchVault,
   searchVaultSchema,
 } from './tools/search.js';
 import {
-  frontmatterTools,
   handleGetFrontmatter,
   handleUpdateFrontmatter,
   getFrontmatterSchema,
   updateFrontmatterSchema,
 } from './tools/frontmatter.js';
 import {
-  tagTools,
   handleListTags,
   handleAddTag,
   handleRemoveTag,
@@ -60,7 +61,6 @@ import {
   searchByTagSchema,
 } from './tools/tags.js';
 import {
-  linkTools,
   handleGetOutlinks,
   handleGetBacklinks,
   handleFindOrphans,
@@ -71,7 +71,6 @@ import {
   getLinkGraphSchema,
 } from './tools/links.js';
 import {
-  dailyNotesTools,
   handleGetDailyNote,
   handleCreateDailyNote,
   handleListDailyNotes,
@@ -82,7 +81,6 @@ import {
   appendToDailySchema,
 } from './tools/daily-notes.js';
 import {
-  templateTools,
   handleListTemplates,
   handleGetTemplate,
   handleApplyTemplate,
@@ -92,7 +90,6 @@ import {
   createFromTemplateSchema,
 } from './tools/templates.js';
 import {
-  basesTools,
   handleListBases,
   handleGetBase,
   handleQueryBase,
@@ -100,8 +97,51 @@ import {
   queryBaseSchema,
 } from './tools/bases.js';
 
-// Import config
+// Import config and tool groups
 import { registerVault } from './services/vault-manager.js';
+import {
+  initToolGroups,
+  getEnabledTools,
+  isToolEnabled,
+  getGroupsHelp,
+} from './tool-groups.js';
+
+// Check for help flag
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(`
+Obsidian MCP Server
+
+Usage:
+  npx tsx src/index.ts [vault-path] [vault-name] [options]
+
+Arguments:
+  vault-path    Path to your Obsidian vault
+  vault-name    Name for the vault (default: "default")
+
+Options:
+  --tools=GROUPS  Comma-separated list of tool groups to enable
+  --help, -h      Show this help message
+
+${getGroupsHelp()}
+
+Examples:
+  # Enable all tools
+  npx tsx src/index.ts /path/to/vault
+
+  # Enable only basic CRUD
+  npx tsx src/index.ts /path/to/vault --tools=vault,notes,search
+
+  # Enable specific groups
+  npx tsx src/index.ts /path/to/vault --tools=vault,notes,frontmatter,tags
+
+  # Disable all tools (for testing)
+  npx tsx src/index.ts /path/to/vault --tools=none
+`);
+  process.exit(0);
+}
+
+// Initialize tool groups from env/args
+initToolGroups();
 
 // Create server instance
 const server = new Server(
@@ -116,19 +156,35 @@ const server = new Server(
   }
 );
 
-// Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools, ...templateTools, ...basesTools];
-
-// Handle list tools request
+// Handle list tools request - only return enabled tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
-    tools: allTools,
+    tools: getEnabledTools() as Array<{
+      name: string;
+      description: string;
+      inputSchema: unknown;
+    }>,
   };
 });
 
-// Handle tool calls
+// Handle tool calls - check if tool is enabled
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+
+  // Check if tool is enabled
+  if (!isToolEnabled(name)) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            error: `Tool "${name}" is not enabled. Check --tools configuration.`,
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
 
   switch (name) {
     // Vault tools
@@ -248,11 +304,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Parse command line arguments for initial vault
 async function parseArgs(): Promise<void> {
-  const args = process.argv.slice(2);
+  // Filter out option arguments
+  const positionalArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 
-  if (args.length > 0) {
-    const vaultPath = args[0];
-    const vaultName = args[1] || 'default';
+  if (positionalArgs.length > 0) {
+    const vaultPath = positionalArgs[0];
+    const vaultName = positionalArgs[1] || 'default';
 
     try {
       await registerVault(vaultName, vaultPath);
