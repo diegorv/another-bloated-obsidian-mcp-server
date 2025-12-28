@@ -10,3 +10,4 @@ export * from './tags.js';
 export * from './links.js';
 export * from './daily-notes.js';
 export * from './templates.js';
+export * from './bases.js';

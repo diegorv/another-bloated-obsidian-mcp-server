@@ -91,6 +91,14 @@ import {
   applyTemplateSchema,
   createFromTemplateSchema,
 } from './tools/templates.js';
+import {
+  basesTools,
+  handleListBases,
+  handleGetBase,
+  handleQueryBase,
+  getBaseSchema,
+  queryBaseSchema,
+} from './tools/bases.js';
 
 // Import config
 import { registerVault } from './services/vault-manager.js';
@@ -109,7 +117,7 @@ const server = new Server(
 );
 
 // Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools, ...templateTools];
+const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools, ...templateTools, ...basesTools];
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -214,6 +222,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'create_from_template':
       return handleCreateFromTemplate(createFromTemplateSchema.parse(args));
+
+    // Bases tools
+    case 'list_bases':
+      return handleListBases();
+
+    case 'get_base':
+      return handleGetBase(getBaseSchema.parse(args));
+
+    case 'query_base':
+      return handleQueryBase(queryBaseSchema.parse(args));
 
     default:
       return {
