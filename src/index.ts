@@ -59,6 +59,17 @@ import {
   removeTagSchema,
   searchByTagSchema,
 } from './tools/tags.js';
+import {
+  linkTools,
+  handleGetOutlinks,
+  handleGetBacklinks,
+  handleFindOrphans,
+  handleFindBrokenLinks,
+  handleGetLinkGraph,
+  getOutlinksSchema,
+  getBacklinksSchema,
+  getLinkGraphSchema,
+} from './tools/links.js';
 
 // Import config
 import { registerVault } from './services/vault-manager.js';
@@ -77,7 +88,7 @@ const server = new Server(
 );
 
 // Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools];
+const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools];
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -140,6 +151,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'search_by_tag':
       return handleSearchByTag(searchByTagSchema.parse(args));
+
+    // Link tools
+    case 'get_outlinks':
+      return handleGetOutlinks(getOutlinksSchema.parse(args));
+
+    case 'get_backlinks':
+      return handleGetBacklinks(getBacklinksSchema.parse(args));
+
+    case 'find_orphans':
+      return handleFindOrphans();
+
+    case 'find_broken_links':
+      return handleFindBrokenLinks();
+
+    case 'get_link_graph':
+      return handleGetLinkGraph(getLinkGraphSchema.parse(args));
 
     default:
       return {
