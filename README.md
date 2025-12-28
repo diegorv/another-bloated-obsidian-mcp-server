@@ -104,14 +104,19 @@ Para o aplicativo Claude Desktop (não o CLI), edite:
 
 ```json
 {
+  "preferences": {
+    "quickEntryShortcut": "off",
+    "chromeExtensionEnabled": true
+  },
   "mcpServers": {
     "obsidian": {
-      "command": "yarn",
+      "command": "/Users/diegorv/.asdf/shims/yarn",
       "args": [
+        "--silent",
         "--cwd",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "/Users/diegorv/Dev/obsidian-mcp-server",
         "start",
-        "/Users/SEU_USUARIO/Obsidian/MeuVault",
+        "/Users/diegorv/MyFiles/vault-teste",
         "--tools=vault,notes,search"
       ]
     }
