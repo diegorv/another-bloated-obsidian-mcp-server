@@ -12,7 +12,7 @@ import {
   ensureMarkdownExtension,
 } from '../utils/path.js';
 import { NoteNotFoundError, NoteAlreadyExistsError } from '../utils/errors.js';
-import type { NoteInfo, NoteContent, UpdateMode } from '../types/index.js';
+import type { NoteInfo, NoteContent, UpdateMode, ReplaceOptions } from '../types/index.js';
 import matter from 'gray-matter';
 
 /**
@@ -120,13 +120,15 @@ export async function createNote(
 
 /**
  * Updates an existing note
+ * @returns Number of replacements made (only for 'replace' mode)
  */
 export async function updateNote(
   vaultPath: string,
   notePath: string,
   content: string,
-  mode: UpdateMode = 'overwrite'
-): Promise<void> {
+  mode: UpdateMode = 'overwrite',
+  replaceOptions?: ReplaceOptions
+): Promise<number> {
   const fullPath = validatePath(ensureMarkdownExtension(notePath), vaultPath);
 
   // Check if note exists
@@ -138,11 +140,51 @@ export async function updateNote(
 
   if (mode === 'overwrite') {
     await fs.writeFile(fullPath, content, 'utf-8');
-  } else {
-    const existing = await fs.readFile(fullPath, 'utf-8');
-    const newContent = mode === 'append' ? existing + '\n' + content : content + '\n' + existing;
-    await fs.writeFile(fullPath, newContent, 'utf-8');
+    return 0;
   }
+
+  const existing = await fs.readFile(fullPath, 'utf-8');
+
+  if (mode === 'append') {
+    await fs.writeFile(fullPath, existing + '\n' + content, 'utf-8');
+    return 0;
+  }
+
+  if (mode === 'prepend') {
+    await fs.writeFile(fullPath, content + '\n' + existing, 'utf-8');
+    return 0;
+  }
+
+  // Replace mode
+  if (mode === 'replace' && replaceOptions) {
+    let searchPattern: string | RegExp;
+
+    if (replaceOptions.useRegex) {
+      const flags = replaceOptions.replaceAll ? 'g' : '';
+      searchPattern = new RegExp(replaceOptions.search, flags);
+    } else {
+      // Escape special regex characters for literal search
+      const escaped = replaceOptions.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const flags = replaceOptions.replaceAll ? 'g' : '';
+      searchPattern = new RegExp(escaped, flags);
+    }
+
+    // Count replacements
+    const matches = existing.match(
+      replaceOptions.useRegex
+        ? new RegExp(replaceOptions.search, 'g')
+        : new RegExp(replaceOptions.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+    );
+    const replacementCount = replaceOptions.replaceAll
+      ? (matches?.length || 0)
+      : (matches && matches.length > 0 ? 1 : 0);
+
+    const newContent = existing.replace(searchPattern, content);
+    await fs.writeFile(fullPath, newContent, 'utf-8');
+    return replacementCount;
+  }
+
+  return 0;
 }
 
 /**

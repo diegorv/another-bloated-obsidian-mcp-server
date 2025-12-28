@@ -31,12 +31,15 @@ export const createNoteSchema = z.object({
 
 export const updateNoteSchema = z.object({
   path: z.string().describe('Path to the note (relative to vault root)'),
-  content: z.string().describe('New content'),
+  content: z.string().describe('New content (or replacement text in replace mode)'),
   mode: z
-    .enum(['overwrite', 'append', 'prepend'])
+    .enum(['overwrite', 'append', 'prepend', 'replace'])
     .optional()
     .default('overwrite')
-    .describe('How to update the note: overwrite (replace), append (add to end), or prepend (add to beginning)'),
+    .describe('How to update: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace)'),
+  search: z.string().optional().describe('Text to search for (required for replace mode)'),
+  replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences (default: false, only first)'),
+  useRegex: z.boolean().optional().default(false).describe('Treat search as a regular expression'),
 });
 
 export const deleteNoteSchema = z.object({
@@ -129,14 +132,50 @@ export async function handleCreateNote(args: z.infer<typeof createNoteSchema>) {
 
 export async function handleUpdateNote(args: z.infer<typeof updateNoteSchema>) {
   try {
+    // Validate replace mode requires search parameter
+    if (args.mode === 'replace' && !args.search) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: 'The "search" parameter is required when using replace mode',
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+
     const vaultPath = await getActiveVaultPath();
-    await updateNote(vaultPath, args.path, args.content, args.mode);
+    const replaceOptions = args.mode === 'replace'
+      ? { search: args.search!, replaceAll: args.replaceAll, useRegex: args.useRegex }
+      : undefined;
+
+    const replacements = await updateNote(
+      vaultPath,
+      args.path,
+      args.content,
+      args.mode,
+      replaceOptions
+    );
+
+    const result: Record<string, unknown> = {
+      success: true,
+      path: args.path,
+      mode: args.mode,
+    };
+
+    if (args.mode === 'replace') {
+      result.replacements = replacements;
+    }
 
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({ success: true, path: args.path, mode: args.mode }),
+          text: JSON.stringify(result),
         },
       ],
     };
@@ -243,7 +282,7 @@ export const noteTools = [
   {
     name: 'update_note',
     description:
-      'Update an existing note. Can overwrite the entire content, append to the end, or prepend to the beginning.',
+      'Update an existing note. Modes: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace specific text).',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -253,13 +292,27 @@ export const noteTools = [
         },
         content: {
           type: 'string',
-          description: 'New content to write',
+          description: 'New content to write (or replacement text in replace mode)',
         },
         mode: {
           type: 'string',
-          enum: ['overwrite', 'append', 'prepend'],
-          description: 'How to update: overwrite (replace all), append (add to end), prepend (add to start)',
+          enum: ['overwrite', 'append', 'prepend', 'replace'],
+          description: 'How to update: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace)',
           default: 'overwrite',
+        },
+        search: {
+          type: 'string',
+          description: 'Text to search for (required for replace mode)',
+        },
+        replaceAll: {
+          type: 'boolean',
+          description: 'Replace all occurrences instead of just the first (default: false)',
+          default: false,
+        },
+        useRegex: {
+          type: 'boolean',
+          description: 'Treat search as a regular expression (default: false)',
+          default: false,
         },
       },
       required: ['path', 'content'],

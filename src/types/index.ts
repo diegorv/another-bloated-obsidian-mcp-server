@@ -33,7 +33,20 @@ export interface SearchResult {
   lineNumbers?: number[];
 }
 
-export type UpdateMode = 'overwrite' | 'append' | 'prepend';
+export type UpdateMode = 'overwrite' | 'append' | 'prepend' | 'replace';
+
+export interface ReplaceOptions {
+  search: string;
+  replaceAll?: boolean;
+  useRegex?: boolean;
+}
+
+export interface UpdateResult {
+  success: boolean;
+  path: string;
+  mode: UpdateMode;
+  replacements?: number;
+}
 
 export interface McpToolResult {
   success: boolean;
