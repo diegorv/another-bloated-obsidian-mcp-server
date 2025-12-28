@@ -11,7 +11,7 @@ import {
   shouldIgnorePath,
   ensureMarkdownExtension,
 } from '../utils/path.js';
-import { NoteNotFoundError, NoteAlreadyExistsError } from '../utils/errors.js';
+import { NoteNotFoundError, NoteAlreadyExistsError, FrontmatterConflictError } from '../utils/errors.js';
 import type { NoteInfo, NoteContent, UpdateMode, ReplaceOptions } from '../types/index.js';
 import matter from 'gray-matter';
 
@@ -118,6 +118,26 @@ export async function createNote(
   return getRelativePath(fullPath, vaultPath);
 }
 
+export interface UpdateOptions {
+  replaceOptions?: ReplaceOptions;
+  ignoreFrontmatterConflict?: boolean;
+}
+
+/**
+ * Checks if content could be interpreted as frontmatter
+ */
+function couldConflictWithFrontmatter(content: string): boolean {
+  // Check if content starts with --- (frontmatter delimiter)
+  return content.trimStart().startsWith('---');
+}
+
+/**
+ * Checks if file has existing frontmatter
+ */
+function hasExistingFrontmatter(content: string): boolean {
+  return content.trimStart().startsWith('---');
+}
+
 /**
  * Updates an existing note
  * @returns Number of replacements made (only for 'replace' mode)
@@ -127,7 +147,7 @@ export async function updateNote(
   notePath: string,
   content: string,
   mode: UpdateMode = 'overwrite',
-  replaceOptions?: ReplaceOptions
+  options?: UpdateOptions
 ): Promise<number> {
   const fullPath = validatePath(ensureMarkdownExtension(notePath), vaultPath);
 
@@ -151,31 +171,41 @@ export async function updateNote(
   }
 
   if (mode === 'prepend') {
+    // Check for potential frontmatter conflict
+    if (
+      !options?.ignoreFrontmatterConflict &&
+      couldConflictWithFrontmatter(content) &&
+      hasExistingFrontmatter(existing)
+    ) {
+      throw new FrontmatterConflictError(notePath);
+    }
+
     await fs.writeFile(fullPath, content + '\n' + existing, 'utf-8');
     return 0;
   }
 
   // Replace mode
-  if (mode === 'replace' && replaceOptions) {
+  if (mode === 'replace' && options?.replaceOptions) {
+    const replaceOpts = options.replaceOptions;
     let searchPattern: string | RegExp;
 
-    if (replaceOptions.useRegex) {
-      const flags = replaceOptions.replaceAll ? 'g' : '';
-      searchPattern = new RegExp(replaceOptions.search, flags);
+    if (replaceOpts.useRegex) {
+      const flags = replaceOpts.replaceAll ? 'g' : '';
+      searchPattern = new RegExp(replaceOpts.search, flags);
     } else {
       // Escape special regex characters for literal search
-      const escaped = replaceOptions.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const flags = replaceOptions.replaceAll ? 'g' : '';
+      const escaped = replaceOpts.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const flags = replaceOpts.replaceAll ? 'g' : '';
       searchPattern = new RegExp(escaped, flags);
     }
 
     // Count replacements
     const matches = existing.match(
-      replaceOptions.useRegex
-        ? new RegExp(replaceOptions.search, 'g')
-        : new RegExp(replaceOptions.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+      replaceOpts.useRegex
+        ? new RegExp(replaceOpts.search, 'g')
+        : new RegExp(replaceOpts.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
     );
-    const replacementCount = replaceOptions.replaceAll
+    const replacementCount = replaceOpts.replaceAll
       ? (matches?.length || 0)
       : (matches && matches.length > 0 ? 1 : 0);
 

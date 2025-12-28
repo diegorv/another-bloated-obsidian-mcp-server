@@ -47,6 +47,17 @@ export class NoteAlreadyExistsError extends McpError {
   }
 }
 
+export class FrontmatterConflictError extends McpError {
+  constructor(notePath: string) {
+    super(
+      `Prepend content contains "---" which may conflict with existing frontmatter in "${notePath}". ` +
+        `Use "ignoreFrontmatterConflict: true" to force the operation.`,
+      'FRONTMATTER_CONFLICT'
+    );
+    this.name = 'FrontmatterConflictError';
+  }
+}
+
 export function formatError(error: unknown): string {
   if (error instanceof McpError) {
     return `[${error.code}] ${error.message}`;

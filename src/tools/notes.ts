@@ -40,6 +40,7 @@ export const updateNoteSchema = z.object({
   search: z.string().optional().describe('Text to search for (required for replace mode)'),
   replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences (default: false, only first)'),
   useRegex: z.boolean().optional().default(false).describe('Treat search as a regular expression'),
+  ignoreFrontmatterConflict: z.boolean().optional().default(false).describe('Force prepend even if content contains "---" that may conflict with frontmatter'),
 });
 
 export const deleteNoteSchema = z.object({
@@ -149,16 +150,21 @@ export async function handleUpdateNote(args: z.infer<typeof updateNoteSchema>) {
     }
 
     const vaultPath = await getActiveVaultPath();
-    const replaceOptions = args.mode === 'replace'
-      ? { search: args.search!, replaceAll: args.replaceAll, useRegex: args.useRegex }
-      : undefined;
+
+    // Build options object
+    const options = {
+      replaceOptions: args.mode === 'replace'
+        ? { search: args.search!, replaceAll: args.replaceAll, useRegex: args.useRegex }
+        : undefined,
+      ignoreFrontmatterConflict: args.ignoreFrontmatterConflict,
+    };
 
     const replacements = await updateNote(
       vaultPath,
       args.path,
       args.content,
       args.mode,
-      replaceOptions
+      options
     );
 
     const result: Record<string, unknown> = {
@@ -282,7 +288,7 @@ export const noteTools = [
   {
     name: 'update_note',
     description:
-      'Update an existing note. Modes: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace specific text).',
+      'Update an existing note. Modes: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace specific text). Prepend mode will error if content starts with "---" to prevent frontmatter conflicts.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -312,6 +318,11 @@ export const noteTools = [
         useRegex: {
           type: 'boolean',
           description: 'Treat search as a regular expression (default: false)',
+          default: false,
+        },
+        ignoreFrontmatterConflict: {
+          type: 'boolean',
+          description: 'Force prepend even if content contains "---" that may conflict with existing frontmatter (default: false)',
           default: false,
         },
       },
