@@ -33,6 +33,7 @@ import {
   basesTools,
   batchTools,
   attachmentTools,
+  backupTools,
 } from './tools/index.js';
 
 export type ToolGroup =
@@ -46,7 +47,8 @@ export type ToolGroup =
   | 'templates'
   | 'bases'
   | 'batch'
-  | 'attachments';
+  | 'attachments'
+  | 'backup';
 
 export const ALL_GROUPS: ToolGroup[] = [
   'vault',
@@ -60,6 +62,7 @@ export const ALL_GROUPS: ToolGroup[] = [
   'bases',
   'batch',
   'attachments',
+  'backup',
 ];
 
 // Map group names to their tools
@@ -75,6 +78,7 @@ const toolGroupMap: Record<ToolGroup, unknown[]> = {
   bases: basesTools,
   batch: batchTools,
   attachments: attachmentTools,
+  backup: backupTools,
 };
 
 // Map tool names to their groups (for validation in call handler)
@@ -135,6 +139,11 @@ const toolToGroupMap: Record<string, ToolGroup> = {
   get_attachment_info: 'attachments',
   find_unused_attachments: 'attachments',
   get_attachments_in_note: 'attachments',
+  // Backup
+  create_note_backup: 'backup',
+  list_backups: 'backup',
+  restore_backup: 'backup',
+  delete_old_backups: 'backup',
 };
 
 let enabledGroups: Set<ToolGroup> = new Set(ALL_GROUPS);
@@ -237,6 +246,7 @@ Available tool groups:
   bases       - Obsidian Bases (list_bases, get_base, query_base)
   batch       - Batch operations (batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag)
   attachments - Attachment management (list_attachments, get_attachment_info, find_unused_attachments, get_attachments_in_note)
+  backup      - Backup system (create_note_backup, list_backups, restore_backup, delete_old_backups)
 
 Special values:
   all         - Enable all groups (default)

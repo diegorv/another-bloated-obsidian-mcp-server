@@ -130,6 +130,17 @@ import {
   getAttachmentsInNoteSchema,
   attachmentTools,
 } from './tools/attachments.js';
+import {
+  handleCreateNoteBackup,
+  handleListBackups,
+  handleRestoreBackup,
+  handleDeleteOldBackups,
+  createNoteBackupSchema,
+  listBackupsSchema,
+  restoreBackupSchema,
+  deleteOldBackupsSchema,
+  backupTools,
+} from './tools/backup.js';
 
 // Import config and tool groups
 import { registerVault } from './services/vault-manager.js';
@@ -366,6 +377,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'get_attachments_in_note':
       return handleGetAttachmentsInNote(getAttachmentsInNoteSchema.parse(args));
+
+    // Backup tools
+    case 'create_note_backup':
+      return handleCreateNoteBackup(createNoteBackupSchema.parse(args));
+
+    case 'list_backups':
+      return handleListBackups(listBackupsSchema.parse(args));
+
+    case 'restore_backup':
+      return handleRestoreBackup(restoreBackupSchema.parse(args));
+
+    case 'delete_old_backups':
+      return handleDeleteOldBackups(deleteOldBackupsSchema.parse(args));
 
     default:
       return {
