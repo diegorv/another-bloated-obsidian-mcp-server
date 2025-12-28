@@ -6,6 +6,15 @@ Tools: `list_vaults`, `set_active_vault`, `register_vault`
 
 ---
 
+## Test Vaults
+
+The following vaults are available for testing:
+
+- **Primary vault (default)**: `/Users/diegorv/MyFiles/vault-teste`
+- **Secondary vault**: `/Users/diegorv/MyFiles/vault-teste-diferente`
+
+---
+
 ## Prerequisites
 
 Before running these tests:
@@ -56,8 +65,8 @@ This test validates that the system properly checks path existence before regist
 ```
 Test various path formats to understand what's supported:
 
-1. Try registering with an absolute path: /Users/yourname/vault-test
-2. Try with a path containing spaces: "/Users/yourname/My Vault Test"
+1. Try registering with an absolute path: /Users/diegorv/MyFiles/vault-teste-diferente
+2. Try with a path containing spaces: "/Users/diegorv/My Vault Test"
 3. Try with a relative path (if supported): ~/vault-test
 ```
 
@@ -68,26 +77,14 @@ Expected:
 
 ---
 
-## Advanced: Register Additional Vault
+## Test 5: Register Additional Vault
 
-> Only needed if you want to work with multiple vaults in the same session.
+> Uses the secondary test vault
 
-**Preparation**: First, create a test vault directory:
-
-**macOS/Linux**:
-```bash
-mkdir -p ~/test-vault-secondary
 ```
-
-**Windows**:
-```cmd
-mkdir %USERPROFILE%\test-vault-secondary
-```
-
-**Then run the test**:
-```
-Register an additional vault called "secondary" at the path you just created
-(e.g., /Users/yourname/test-vault-secondary or ~/test-vault-secondary)
+Register the secondary vault:
+- Name: "secondary"
+- Path: /Users/diegorv/MyFiles/vault-teste-diferente
 ```
 
 Expected:
@@ -97,9 +94,9 @@ Expected:
 
 ---
 
-## Advanced: Switch Between Vaults
+## Test 6: Switch Between Vaults
 
-> Only useful if you have multiple vaults registered (requires previous test).
+> Requires multiple vaults registered (requires Test 5)
 
 ```
 Set the vault "secondary" as the active vault
@@ -111,7 +108,7 @@ Expected:
 
 ---
 
-## Test 5: Verify Vault Switch
+## Test 7: Verify Vault Switch
 
 > Requires multiple vaults registered
 
@@ -126,7 +123,7 @@ Expected: Note is created in the secondary vault, not the default one.
 
 ---
 
-## Test 6: Switch Back to Default
+## Test 8: Switch Back to Default
 
 ```
 Set the vault "default" as the active vault again
@@ -136,14 +133,13 @@ Expected: Default vault becomes active again.
 
 ---
 
-## Test 7: Cleanup (Optional)
+## Test 9: Cleanup (Optional)
 
 ```
 After testing with multiple vaults:
 1. Switch back to the "default" vault
 2. Note: There is currently no unregister_vault tool
 3. To remove registered vaults, restart the MCP server
-4. Optional: Delete the test vault directory you created
 ```
 
 Expected: After restart, only the "default" vault is registered.
@@ -287,6 +283,10 @@ Use this template to document your test results:
 Date: [DATE]
 Tester: [NAME]
 
+Test Vaults:
+- Primary: /Users/diegorv/MyFiles/vault-teste
+- Secondary: /Users/diegorv/MyFiles/vault-teste-diferente
+
 | # | Test | Status | Notes |
 |---|------|--------|-------|
 | 1 | List Configured Vaults | ✅/❌ | |
@@ -298,7 +298,7 @@ Tester: [NAME]
 | 7 | Verify Vault Switch | ✅/❌ | |
 | 8 | Switch Back to Default | ✅/❌ | |
 | 9 | Cleanup | ✅/❌ | |
-| 10 | Quick Verification | ✅/❌ | |
+| - | Quick Verification | ✅/❌ | |
 
 Overall Status: [PASSED/FAILED/PARTIAL]
 Key Issues Found: [DESCRIPTION]
