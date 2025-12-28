@@ -280,6 +280,29 @@ export async function renameNote(
 }
 
 /**
+ * Moves a note to a different folder
+ * @returns Number of links updated in other notes
+ */
+export async function moveNote(
+  vaultPath: string,
+  notePath: string,
+  destinationFolder: string,
+  updateLinks = true
+): Promise<{ newPath: string; linksUpdated: number }> {
+  // Construct the new path by combining destination folder with the file name
+  const fileName = path.basename(ensureMarkdownExtension(notePath));
+  const newPath = destinationFolder ? path.join(destinationFolder, fileName) : fileName;
+
+  // Use renameNote to do the actual move
+  const linksUpdated = await renameNote(vaultPath, notePath, newPath, updateLinks);
+
+  return {
+    newPath: getRelativePath(validatePath(ensureMarkdownExtension(newPath), vaultPath), vaultPath),
+    linksUpdated,
+  };
+}
+
+/**
  * Updates internal wikilinks in all notes that reference the old path
  */
 async function updateInternalLinks(

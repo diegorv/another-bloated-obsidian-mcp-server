@@ -10,6 +10,7 @@ import {
   updateNote,
   deleteNote,
   renameNote,
+  moveNote,
 } from '../services/filesystem.js';
 import { getActiveVaultPath } from '../services/vault-manager.js';
 import { formatError } from '../utils/errors.js';
@@ -51,6 +52,12 @@ export const deleteNoteSchema = z.object({
 export const renameNoteSchema = z.object({
   oldPath: z.string().describe('Current path of the note (relative to vault root)'),
   newPath: z.string().describe('New path for the note (relative to vault root)'),
+  updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes that reference this note'),
+});
+
+export const moveNoteSchema = z.object({
+  path: z.string().describe('Path to the note to move (relative to vault root)'),
+  destinationFolder: z.string().describe('Destination folder path (relative to vault root, use empty string for root)'),
   updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes that reference this note'),
 });
 
@@ -267,6 +274,43 @@ export async function handleRenameNote(args: z.infer<typeof renameNoteSchema>) {
   }
 }
 
+export async function handleMoveNote(args: z.infer<typeof moveNoteSchema>) {
+  try {
+    const vaultPath = await getActiveVaultPath();
+    const result = await moveNote(
+      vaultPath,
+      args.path,
+      args.destinationFolder,
+      args.updateLinks
+    );
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            oldPath: args.path,
+            newPath: result.newPath,
+            destinationFolder: args.destinationFolder,
+            linksUpdated: result.linksUpdated,
+          }),
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ success: false, error: formatError(error) }),
+        },
+      ],
+      isError: true,
+    };
+  }
+}
+
 // Tool definitions for MCP
 export const noteTools = [
   {
@@ -408,6 +452,30 @@ export const noteTools = [
         },
       },
       required: ['oldPath', 'newPath'],
+    },
+  },
+  {
+    name: 'move_note',
+    description:
+      'Move a note to a different folder. Keeps the same filename but changes location. Optionally updates all wikilinks.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Path to the note to move (e.g., "Inbox/MyNote.md")',
+        },
+        destinationFolder: {
+          type: 'string',
+          description: 'Destination folder path (e.g., "Projects/Active"). Use empty string to move to vault root.',
+        },
+        updateLinks: {
+          type: 'boolean',
+          description: 'Update wikilinks in other notes that reference this note (default: true)',
+          default: true,
+        },
+      },
+      required: ['path', 'destinationFolder'],
     },
   },
 ];
