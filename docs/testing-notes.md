@@ -1,3 +1,5 @@
+According to the Obsidian MCP that I'm running, run the script below. At the end, list what worked and what didn't work. If you understand that there are opportunities for improvement, list them too. Don't stop the script if any error happens.
+
 # Testing Notes Tools
 
 Tools: `list_notes`, `read_note`, `create_note`, `update_note`, `delete_note`

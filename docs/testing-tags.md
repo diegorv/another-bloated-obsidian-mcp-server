@@ -1,3 +1,5 @@
+According to the Obsidian MCP that I'm running, run the script below. At the end, list what worked and what didn't work. If you understand that there are opportunities for improvement, list them too. Don't stop the script if any error happens.
+
 # Testing Tags Tools
 
 Tools: `list_tags`, `add_tag`, `remove_tag`, `search_by_tag`

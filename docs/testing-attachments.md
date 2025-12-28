@@ -1,3 +1,5 @@
+According to the Obsidian MCP that I'm running, run the script below. At the end, list what worked and what didn't work. If you understand that there are opportunities for improvement, list them too. Don't stop the script if any error happens.
+
 # Testing Attachment Management Tools
 
 Tools: `list_attachments`, `get_attachment_info`, `find_unused_attachments`, `get_attachments_in_note`
