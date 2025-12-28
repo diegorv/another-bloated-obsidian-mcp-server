@@ -150,6 +150,7 @@ import {
   isToolEnabled,
   getGroupsHelp,
 } from './tool-groups.js';
+import { logger } from './utils/logger.js';
 
 // Check for help flag
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -216,8 +217,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  logger.debug(`Tool call received: ${name}`, args);
+
   // Check if tool is enabled
   if (!isToolEnabled(name)) {
+    logger.warn(`Tool not enabled: ${name}`);
     return {
       content: [
         {
@@ -230,6 +234,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true,
     };
   }
+
+  try {
 
   switch (name) {
     // Vault tools
@@ -392,6 +398,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return handleDeleteOldBackups(deleteOldBackupsSchema.parse(args));
 
     default:
+      logger.error(`Unknown tool: ${name}`);
       return {
         content: [
           {
@@ -401,6 +408,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ],
         isError: true,
       };
+  }
+  } catch (error) {
+    logger.error(`Error executing tool ${name}`, error);
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error occurred',
+          }),
+        },
+      ],
+      isError: true,
+    };
   }
 });
 
@@ -415,8 +436,10 @@ async function parseArgs(): Promise<void> {
 
     try {
       await registerVault(vaultName, vaultPath);
+      logger.info(`Registered vault "${vaultName}" at ${vaultPath}`);
       console.error(`Registered vault "${vaultName}" at ${vaultPath}`);
     } catch (error) {
+      logger.error(`Could not register vault: ${vaultName}`, error);
       console.error(`Warning: Could not register vault: ${error}`);
     }
   }
@@ -424,15 +447,20 @@ async function parseArgs(): Promise<void> {
 
 // Main entry point
 async function main(): Promise<void> {
+  logger.info('Starting Obsidian MCP Server');
+  logger.info(`Enabled tool groups: ${process.env.OBSIDIAN_MCP_TOOLS || 'all'}`);
+
   await parseArgs();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
+  logger.info('Obsidian MCP Server connected via stdio');
   console.error('Obsidian MCP Server running on stdio');
 }
 
 main().catch((error) => {
+  logger.error('Fatal error in main', error);
   console.error('Fatal error:', error);
   process.exit(1);
 });

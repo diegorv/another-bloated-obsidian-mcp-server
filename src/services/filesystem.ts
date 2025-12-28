@@ -191,6 +191,43 @@ function hasExistingFrontmatter(content: string): boolean {
 }
 
 /**
+ * Extracts frontmatter and body content from a file
+ * @returns Object with frontmatter block and body content
+ */
+function extractFrontmatter(content: string): { frontmatter: string; body: string } {
+  const trimmed = content.trimStart();
+
+  if (!trimmed.startsWith('---')) {
+    return { frontmatter: '', body: content };
+  }
+
+  // Find the closing --- delimiter
+  const lines = trimmed.split('\n');
+  let endIndex = -1;
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      endIndex = i;
+      break;
+    }
+  }
+
+  if (endIndex === -1) {
+    // No closing delimiter found, treat as no frontmatter
+    return { frontmatter: '', body: content };
+  }
+
+  // Extract frontmatter (including delimiters) and body
+  const frontmatterLines = lines.slice(0, endIndex + 1);
+  const bodyLines = lines.slice(endIndex + 1);
+
+  return {
+    frontmatter: frontmatterLines.join('\n'),
+    body: bodyLines.join('\n'),
+  };
+}
+
+/**
  * Updates an existing note
  * @returns Number of replacements made (only for 'replace' mode)
  */
@@ -223,16 +260,29 @@ export async function updateNote(
   }
 
   if (mode === 'prepend') {
-    // Check for potential frontmatter conflict
+    // Check for potential frontmatter conflict ONLY if trying to add content that starts with ---
     if (
       !options?.ignoreFrontmatterConflict &&
-      couldConflictWithFrontmatter(content) &&
-      hasExistingFrontmatter(existing)
+      couldConflictWithFrontmatter(content)
     ) {
       throw new FrontmatterConflictError(notePath);
     }
 
-    await fs.writeFile(fullPath, content + '\n' + existing, 'utf-8');
+    // Extract existing frontmatter and body
+    const { frontmatter, body } = extractFrontmatter(existing);
+
+    // If there's frontmatter, add content after it
+    // If not, add content at the beginning
+    let newContent: string;
+    if (frontmatter) {
+      // Add content after frontmatter
+      newContent = frontmatter + '\n' + content + '\n' + body;
+    } else {
+      // No frontmatter, add at beginning
+      newContent = content + '\n' + existing;
+    }
+
+    await fs.writeFile(fullPath, newContent, 'utf-8');
     return 0;
   }
 
