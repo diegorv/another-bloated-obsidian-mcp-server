@@ -15,16 +15,24 @@ Servidor MCP (Model Context Protocol) para integrar o Obsidian com Claude Code e
 - Sistema de templates
 - Integração com Obsidian Bases
 
+## Pré-requisitos
+
+- Node.js 18+
+- Yarn (se não tiver, instale com `npm install -g yarn`)
+
 ## Instalação
 
 ```bash
-# Clone ou navegue até o diretório do projeto
+# 1. Instale o yarn globalmente (se ainda não tiver)
+npm install -g yarn
+
+# 2. Navegue até o diretório do projeto
 cd obsidian-mcp-server
 
-# Instale as dependências
+# 3. Instale as dependências
 yarn install
 
-# Build (opcional, pode rodar direto com tsx)
+# 4. Build (opcional, pode rodar direto com tsx)
 yarn build
 ```
 
