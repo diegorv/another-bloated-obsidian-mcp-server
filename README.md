@@ -22,10 +22,10 @@ Servidor MCP (Model Context Protocol) para integrar o Obsidian com Claude Code e
 cd obsidian-mcp-server
 
 # Instale as dependências
-npm install
+yarn install
 
 # Build (opcional, pode rodar direto com tsx)
-npm run build
+yarn build
 ```
 
 ## Configuração no Claude Code Desktop
@@ -41,10 +41,11 @@ Edite o arquivo de configuração do Claude Code Desktop:
 {
   "mcpServers": {
     "obsidian": {
-      "command": "npx",
+      "command": "yarn",
       "args": [
-        "tsx",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server/src/index.ts",
+        "--cwd",
+        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "start",
         "/Users/SEU_USUARIO/Obsidian/MeuVault"
       ]
     }
@@ -58,10 +59,11 @@ Edite o arquivo de configuração do Claude Code Desktop:
 {
   "mcpServers": {
     "obsidian": {
-      "command": "npx",
+      "command": "yarn",
       "args": [
-        "tsx",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server/src/index.ts",
+        "--cwd",
+        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "start",
         "/Users/SEU_USUARIO/Obsidian/MeuVault",
         "--tools=vault,notes,search"
       ]
@@ -76,10 +78,11 @@ Edite o arquivo de configuração do Claude Code Desktop:
 {
   "mcpServers": {
     "obsidian": {
-      "command": "npx",
+      "command": "yarn",
       "args": [
-        "tsx",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server/src/index.ts",
+        "--cwd",
+        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "start",
         "/Users/SEU_USUARIO/Obsidian/MeuVault"
       ],
       "env": {
@@ -96,20 +99,22 @@ Edite o arquivo de configuração do Claude Code Desktop:
 {
   "mcpServers": {
     "obsidian-personal": {
-      "command": "npx",
+      "command": "yarn",
       "args": [
-        "tsx",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server/src/index.ts",
+        "--cwd",
+        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "start",
         "/Users/SEU_USUARIO/Obsidian/Personal",
         "personal",
         "--tools=all"
       ]
     },
     "obsidian-work": {
-      "command": "npx",
+      "command": "yarn",
       "args": [
-        "tsx",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server/src/index.ts",
+        "--cwd",
+        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
+        "start",
         "/Users/SEU_USUARIO/Obsidian/Work",
         "work",
         "--tools=vault,notes,search,daily"
@@ -178,16 +183,16 @@ Ideal para: criar notas a partir de templates, gerenciar metadados.
 
 ```bash
 # Ver ajuda completa
-npx tsx src/index.ts --help
+yarn start --help
 
 # Iniciar com vault específico
-npx tsx src/index.ts /caminho/para/vault nome-do-vault
+yarn start /caminho/para/vault nome-do-vault
 
 # Iniciar com grupos específicos
-npx tsx src/index.ts /caminho/para/vault --tools=vault,notes,search
+yarn start /caminho/para/vault --tools=vault,notes,search
 
 # Usar variável de ambiente
-OBSIDIAN_MCP_TOOLS=vault,notes npx tsx src/index.ts /caminho/para/vault
+OBSIDIAN_MCP_TOOLS=vault,notes yarn start /caminho/para/vault
 ```
 
 ## Configuração Multi-Vault
@@ -225,16 +230,16 @@ Verifique se o usuário que executa o Claude Code Desktop tem permissão de leit
 
 ```bash
 # Rodar em modo desenvolvimento
-npm run dev
+yarn dev
 
 # Build
-npm run build
+yarn build
 
 # Type check
-npm run typecheck
+yarn tsc --noEmit
 
-# Lint
-npm run lint
+# Testes
+yarn test
 ```
 
 ## Licença
