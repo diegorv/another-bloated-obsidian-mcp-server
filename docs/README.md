@@ -2,15 +2,17 @@
 
 This folder contains test scripts for each tool group. Copy and paste the prompts into Claude Desktop or Claude Code to test each functionality.
 
+> **Note**: The vault is automatically registered when the MCP starts (from the path in your config). You don't need to register it manually.
+
 ## Quick Start
 
 After configuring the MCP server, use this prompt to verify everything is working:
 
 ```
 Test the Obsidian MCP connection:
-1. List all configured vaults
-2. List the 5 most recent notes
-3. Search for "test" in the vault
+1. List all configured vaults and show which is active
+2. List the 5 most recent notes in the vault
+3. Search for a common word in the vault
 ```
 
 ## Test Guides by Tool Group

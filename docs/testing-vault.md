@@ -2,52 +2,57 @@
 
 Tools: `list_vaults`, `set_active_vault`, `register_vault`
 
+> **Note**: When the MCP server starts, the vault specified in the command line is automatically registered as "default" and set as active. You don't need to register it again.
+
 ## Test 1: List Configured Vaults
 
 ```
 List all configured Obsidian vaults
 ```
 
-Expected: Returns a list of vaults with the active one marked.
+Expected: Returns the "default" vault (configured at startup) as active.
 
 ---
 
-## Test 2: Register a New Vault
+## Test 2: Verify Vault is Active
 
 ```
-Register a new vault called "test-vault" at path /Users/username/Documents/TestVault
+List all vaults and confirm which one is currently active
 ```
 
-Expected: Confirms the vault was registered successfully.
+Expected: Shows the default vault as active with its path.
 
 ---
 
-## Test 3: Set Active Vault
+## Advanced: Register Additional Vault
+
+> Only needed if you want to work with multiple vaults in the same session.
 
 ```
-Set the vault "test-vault" as the active vault
+Register an additional vault called "secondary" at path /path/to/another/vault
+```
+
+Expected: Confirms the new vault was registered (but default remains active).
+
+---
+
+## Advanced: Switch Between Vaults
+
+> Only useful if you have multiple vaults registered.
+
+```
+Set the vault "secondary" as the active vault
 ```
 
 Expected: Confirms the active vault was changed.
 
 ---
 
-## Test 4: Verify Active Vault Changed
+## Quick Verification Test
 
 ```
-List all vaults and confirm which one is active
-```
-
-Expected: Shows "test-vault" as the active vault.
-
----
-
-## Full Flow Test
-
-```
-Test the vault management:
+Verify the Obsidian MCP connection:
 1. List all configured vaults
-2. Register a new vault called "demo" at /tmp/demo-vault (create the folder first if needed)
-3. Set "demo" as the active vault
-4. List vaults again to confirm the change
+2. Confirm which vault is active
+3. Show the vault path
 ```
