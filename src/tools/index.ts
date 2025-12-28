@@ -8,3 +8,4 @@ export * from './search.js';
 export * from './frontmatter.js';
 export * from './tags.js';
 export * from './links.js';
+export * from './daily-notes.js';

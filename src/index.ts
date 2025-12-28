@@ -70,6 +70,17 @@ import {
   getBacklinksSchema,
   getLinkGraphSchema,
 } from './tools/links.js';
+import {
+  dailyNotesTools,
+  handleGetDailyNote,
+  handleCreateDailyNote,
+  handleListDailyNotes,
+  handleAppendToDaily,
+  getDailyNoteSchema,
+  createDailyNoteSchema,
+  listDailyNotesSchema,
+  appendToDailySchema,
+} from './tools/daily-notes.js';
 
 // Import config
 import { registerVault } from './services/vault-manager.js';
@@ -88,7 +99,7 @@ const server = new Server(
 );
 
 // Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools];
+const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools];
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -167,6 +178,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'get_link_graph':
       return handleGetLinkGraph(getLinkGraphSchema.parse(args));
+
+    // Daily notes tools
+    case 'get_daily_note':
+      return handleGetDailyNote(getDailyNoteSchema.parse(args));
+
+    case 'create_daily_note':
+      return handleCreateDailyNote(createDailyNoteSchema.parse(args));
+
+    case 'list_daily_notes':
+      return handleListDailyNotes(listDailyNotesSchema.parse(args));
+
+    case 'append_to_daily':
+      return handleAppendToDaily(appendToDailySchema.parse(args));
 
     default:
       return {
