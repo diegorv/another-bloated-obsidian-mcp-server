@@ -36,32 +36,71 @@ yarn install
 yarn build
 ```
 
-## Configuração no Claude Code Desktop
+## Configuração
 
-Edite o arquivo de configuração do Claude Code Desktop:
+### Opção 1: Claude Code CLI (Recomendado)
 
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+A forma mais fácil de configurar é usando o comando `claude mcp add`:
 
-### Exemplo: Habilitar todas as ferramentas
+```bash
+# Adicionar o servidor MCP (execute uma vez)
+claude mcp add obsidian \
+  --transport stdio \
+  --scope user \
+  -- yarn --cwd /Users/SEU_USUARIO/Dev/obsidian-mcp-server start /Users/SEU_USUARIO/Obsidian/MeuVault
+
+# Com grupos específicos de ferramentas
+claude mcp add obsidian \
+  --transport stdio \
+  --scope user \
+  -- yarn --cwd /Users/SEU_USUARIO/Dev/obsidian-mcp-server start /Users/SEU_USUARIO/Obsidian/MeuVault --tools=vault,notes,search
+```
+
+**Escopos disponíveis:**
+- `user` - Disponível em todos os projetos (salvo em `~/.claude.json`)
+- `local` - Apenas no projeto atual
+- `project` - Compartilhado com o time (salvo em `.mcp.json`)
+
+**Comandos úteis:**
+```bash
+# Listar servidores configurados
+claude mcp list
+
+# Ver detalhes de um servidor
+claude mcp get obsidian
+
+# Remover servidor
+claude mcp remove obsidian
+```
+
+### Opção 2: Arquivo de configuração manual
+
+Crie ou edite o arquivo `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "obsidian": {
+      "type": "stdio",
       "command": "yarn",
       "args": [
         "--cwd",
         "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
         "start",
-        "/Users/SEU_USUARIO/Obsidian/MeuVault"
+        "/Users/SEU_USUARIO/Obsidian/MeuVault",
+        "--tools=vault,notes,search"
       ]
     }
   }
 }
 ```
 
-### Exemplo: Habilitar apenas CRUD básico
+### Opção 3: Claude Desktop App
+
+Para o aplicativo Claude Desktop (não o CLI), edite:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -80,57 +119,9 @@ Edite o arquivo de configuração do Claude Code Desktop:
 }
 ```
 
-### Exemplo: Usando variável de ambiente
+### Verificar se está funcionando
 
-```json
-{
-  "mcpServers": {
-    "obsidian": {
-      "command": "yarn",
-      "args": [
-        "--cwd",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
-        "start",
-        "/Users/SEU_USUARIO/Obsidian/MeuVault"
-      ],
-      "env": {
-        "OBSIDIAN_MCP_TOOLS": "vault,notes,search,frontmatter"
-      }
-    }
-  }
-}
-```
-
-### Exemplo: Múltiplos vaults com configurações diferentes
-
-```json
-{
-  "mcpServers": {
-    "obsidian-personal": {
-      "command": "yarn",
-      "args": [
-        "--cwd",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
-        "start",
-        "/Users/SEU_USUARIO/Obsidian/Personal",
-        "personal",
-        "--tools=all"
-      ]
-    },
-    "obsidian-work": {
-      "command": "yarn",
-      "args": [
-        "--cwd",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
-        "start",
-        "/Users/SEU_USUARIO/Obsidian/Work",
-        "work",
-        "--tools=vault,notes,search,daily"
-      ]
-    }
-  }
-}
-```
+Após configurar, reinicie o Claude Code/Desktop e use o comando `/mcp` para verificar o status do servidor.
 
 ## Grupos de Ferramentas Disponíveis
 
@@ -220,11 +211,23 @@ Crie o arquivo `~/.obsidian-mcp/config.json`:
 
 ## Troubleshooting
 
-### O MCP não aparece no Claude Code Desktop
+### O MCP não aparece ou não conecta
 
-1. Verifique se o caminho do arquivo está correto (use caminho absoluto)
-2. Reinicie o Claude Code Desktop completamente
-3. Verifique os logs em: `~/Library/Logs/Claude/mcp*.log`
+1. Verifique se o caminho do projeto está correto (use caminho absoluto)
+2. Verifique se o yarn está instalado globalmente: `yarn --version`
+3. Teste manualmente: `yarn --cwd /caminho/do/projeto start --help`
+4. Para Claude Code CLI: use `/mcp` para ver status e erros
+5. Para Claude Desktop: verifique logs em `~/Library/Logs/Claude/mcp*.log`
+
+### Verificar configuração no Claude Code CLI
+
+```bash
+# Ver todos os servidores
+claude mcp list
+
+# Ver detalhes do servidor obsidian
+claude mcp get obsidian
+```
 
 ### Erro "Tool X is not enabled"
 
