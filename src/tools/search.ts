@@ -9,10 +9,12 @@ import { formatError } from '../utils/errors.js';
 
 // Schema definitions
 export const searchVaultSchema = z.object({
-  query: z.string().describe('Text to search for'),
+  query: z.string().describe('Text to search for (or regex pattern if useRegex is true)'),
   caseSensitive: z.boolean().optional().default(false).describe('Case-sensitive search'),
   folder: z.string().optional().describe('Limit search to a specific folder'),
   maxResults: z.number().optional().default(50).describe('Maximum number of results to return'),
+  useRegex: z.boolean().optional().default(false).describe('Treat query as a regular expression'),
+  contextLines: z.number().optional().default(0).describe('Number of lines to include before and after each match (0 = no context)'),
 });
 
 // Tool implementations
@@ -23,6 +25,8 @@ export async function handleSearchVault(args: z.infer<typeof searchVaultSchema>)
       caseSensitive: args.caseSensitive,
       folder: args.folder,
       maxResults: args.maxResults,
+      useRegex: args.useRegex,
+      contextLines: args.contextLines,
     });
 
     return {
@@ -59,13 +63,13 @@ export const searchTools = [
   {
     name: 'search_vault',
     description:
-      'Search for text across all notes in the vault. Returns matching files with the lines containing the search query.',
+      'Search for text across all notes in the vault. Supports regex patterns and context lines around matches.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         query: {
           type: 'string',
-          description: 'Text to search for',
+          description: 'Text to search for (or regex pattern if useRegex is true)',
         },
         caseSensitive: {
           type: 'boolean',
@@ -80,6 +84,16 @@ export const searchTools = [
           type: 'number',
           description: 'Maximum number of files to return (default: 50)',
           default: 50,
+        },
+        useRegex: {
+          type: 'boolean',
+          description: 'Treat query as a regular expression (default: false)',
+          default: false,
+        },
+        contextLines: {
+          type: 'number',
+          description: 'Number of lines to include before and after each match (default: 0)',
+          default: 0,
         },
       },
       required: ['query'],

@@ -27,9 +27,16 @@ export interface NoteContent {
   frontmatter?: Record<string, unknown>;
 }
 
+export interface SearchMatch {
+  line: string;
+  lineNumber: number;
+  contextBefore?: string[];
+  contextAfter?: string[];
+}
+
 export interface SearchResult {
   path: string;
-  matches: string[];
+  matches: string[] | SearchMatch[];
   lineNumbers?: number[];
 }
 
