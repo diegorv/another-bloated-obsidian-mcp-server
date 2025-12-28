@@ -81,6 +81,16 @@ import {
   listDailyNotesSchema,
   appendToDailySchema,
 } from './tools/daily-notes.js';
+import {
+  templateTools,
+  handleListTemplates,
+  handleGetTemplate,
+  handleApplyTemplate,
+  handleCreateFromTemplate,
+  getTemplateSchema,
+  applyTemplateSchema,
+  createFromTemplateSchema,
+} from './tools/templates.js';
 
 // Import config
 import { registerVault } from './services/vault-manager.js';
@@ -99,7 +109,7 @@ const server = new Server(
 );
 
 // Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools];
+const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools, ...linkTools, ...dailyNotesTools, ...templateTools];
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -191,6 +201,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'append_to_daily':
       return handleAppendToDaily(appendToDailySchema.parse(args));
+
+    // Template tools
+    case 'list_templates':
+      return handleListTemplates();
+
+    case 'get_template':
+      return handleGetTemplate(getTemplateSchema.parse(args));
+
+    case 'apply_template':
+      return handleApplyTemplate(applyTemplateSchema.parse(args));
+
+    case 'create_from_template':
+      return handleCreateFromTemplate(createFromTemplateSchema.parse(args));
 
     default:
       return {
