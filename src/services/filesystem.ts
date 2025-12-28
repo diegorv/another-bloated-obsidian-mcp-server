@@ -12,19 +12,38 @@ import {
   ensureMarkdownExtension,
 } from '../utils/path.js';
 import { NoteNotFoundError, NoteAlreadyExistsError, FrontmatterConflictError } from '../utils/errors.js';
-import type { NoteInfo, NoteContent, UpdateMode, ReplaceOptions } from '../types/index.js';
+import type { NoteInfo, NoteContent, UpdateMode, ReplaceOptions, ListNotesOptions } from '../types/index.js';
 import matter from 'gray-matter';
 
 /**
- * Lists all markdown files in a directory
+ * Lists all markdown files in a directory with advanced options
  */
 export async function listNotes(
   vaultPath: string,
-  folder?: string,
-  recursive = true
-): Promise<NoteInfo[]> {
+  options: ListNotesOptions = {}
+): Promise<{ notes: NoteInfo[]; total: number }> {
+  const {
+    folder,
+    recursive = true,
+    sortBy = 'modified',
+    sortOrder = 'desc',
+    limit,
+    offset = 0,
+    namePattern,
+  } = options;
+
   const targetPath = folder ? validatePath(folder, vaultPath) : vaultPath;
   const notes: NoteInfo[] = [];
+
+  // Compile name pattern regex if provided
+  let nameRegex: RegExp | null = null;
+  if (namePattern) {
+    try {
+      nameRegex = new RegExp(namePattern, 'i');
+    } catch {
+      throw new Error(`Invalid name pattern regex: ${namePattern}`);
+    }
+  }
 
   async function scanDir(dirPath: string): Promise<void> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -40,11 +59,20 @@ export async function listNotes(
       if (entry.isDirectory() && recursive) {
         await scanDir(fullPath);
       } else if (entry.isFile() && isMarkdownFile(entry.name)) {
+        const noteName = path.basename(entry.name, path.extname(entry.name));
+
+        // Apply name pattern filter
+        if (nameRegex && !nameRegex.test(noteName)) {
+          continue;
+        }
+
         const stats = await fs.stat(fullPath);
         notes.push({
           path: relativePath,
-          name: path.basename(entry.name, path.extname(entry.name)),
+          name: noteName,
           modified: stats.mtime.toISOString(),
+          created: stats.birthtime.toISOString(),
+          size: stats.size,
         });
       }
     }
@@ -52,10 +80,34 @@ export async function listNotes(
 
   await scanDir(targetPath);
 
-  // Sort by modification time (newest first)
-  notes.sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
+  // Sort notes
+  notes.sort((a, b) => {
+    let compareResult: number;
 
-  return notes;
+    switch (sortBy) {
+      case 'name':
+        compareResult = a.name.localeCompare(b.name);
+        break;
+      case 'created':
+        compareResult = new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
+        break;
+      case 'modified':
+      default:
+        compareResult = new Date(a.modified).getTime() - new Date(b.modified).getTime();
+        break;
+    }
+
+    return sortOrder === 'desc' ? -compareResult : compareResult;
+  });
+
+  const total = notes.length;
+
+  // Apply pagination
+  const paginatedNotes = limit !== undefined
+    ? notes.slice(offset, offset + limit)
+    : notes.slice(offset);
+
+  return { notes: paginatedNotes, total };
 }
 
 /**
@@ -310,7 +362,7 @@ async function updateInternalLinks(
   oldPath: string,
   newPath: string
 ): Promise<number> {
-  const notes = await listNotes(vaultPath, undefined, true);
+  const { notes } = await listNotes(vaultPath, { recursive: true });
   let totalUpdated = 0;
 
   // Get the note names without extension for wikilink matching

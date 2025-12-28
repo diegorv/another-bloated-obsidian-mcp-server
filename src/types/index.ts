@@ -20,6 +20,18 @@ export interface NoteInfo {
   path: string;
   name: string;
   modified: string;
+  created?: string;
+  size?: number;
+}
+
+export interface ListNotesOptions {
+  folder?: string;
+  recursive?: boolean;
+  sortBy?: 'name' | 'modified' | 'created';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  namePattern?: string;
 }
 
 export interface NoteContent {

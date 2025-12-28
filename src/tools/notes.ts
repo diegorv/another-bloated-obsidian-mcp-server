@@ -19,6 +19,11 @@ import { formatError } from '../utils/errors.js';
 export const listNotesSchema = z.object({
   folder: z.string().optional().describe('Filter notes by folder path'),
   recursive: z.boolean().optional().default(true).describe('Include notes in subfolders'),
+  sortBy: z.enum(['name', 'modified', 'created']).optional().default('modified').describe('Sort notes by: name, modified date, or created date'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc').describe('Sort order: ascending or descending'),
+  limit: z.number().optional().describe('Maximum number of notes to return'),
+  offset: z.number().optional().default(0).describe('Number of notes to skip (for pagination)'),
+  namePattern: z.string().optional().describe('Filter notes by name pattern (regex)'),
 });
 
 export const readNoteSchema = z.object({
@@ -65,13 +70,26 @@ export const moveNoteSchema = z.object({
 export async function handleListNotes(args: z.infer<typeof listNotesSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
-    const notes = await listNotes(vaultPath, args.folder, args.recursive);
+    const result = await listNotes(vaultPath, {
+      folder: args.folder,
+      recursive: args.recursive,
+      sortBy: args.sortBy,
+      sortOrder: args.sortOrder,
+      limit: args.limit,
+      offset: args.offset,
+      namePattern: args.namePattern,
+    });
 
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({ notes, count: notes.length }, null, 2),
+          text: JSON.stringify({
+            notes: result.notes,
+            count: result.notes.length,
+            total: result.total,
+            hasMore: args.limit !== undefined && result.total > (args.offset || 0) + result.notes.length,
+          }, null, 2),
         },
       ],
     };
@@ -316,7 +334,7 @@ export const noteTools = [
   {
     name: 'list_notes',
     description:
-      'List all markdown notes in the active vault, optionally filtered by folder. Returns note paths, names, and last modified dates sorted by most recent.',
+      'List markdown notes in the vault with sorting, filtering, and pagination. Returns paths, names, dates, and sizes.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -328,6 +346,31 @@ export const noteTools = [
           type: 'boolean',
           description: 'Include notes in subfolders (default: true)',
           default: true,
+        },
+        sortBy: {
+          type: 'string',
+          enum: ['name', 'modified', 'created'],
+          description: 'Sort notes by: name, modified date, or created date (default: modified)',
+          default: 'modified',
+        },
+        sortOrder: {
+          type: 'string',
+          enum: ['asc', 'desc'],
+          description: 'Sort order: ascending or descending (default: desc)',
+          default: 'desc',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of notes to return (for pagination)',
+        },
+        offset: {
+          type: 'number',
+          description: 'Number of notes to skip (for pagination, default: 0)',
+          default: 0,
+        },
+        namePattern: {
+          type: 'string',
+          description: 'Filter notes by name using regex pattern (e.g., "^2024" for notes starting with 2024)',
         },
       },
       required: [],
