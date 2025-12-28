@@ -51,8 +51,14 @@ import {
 import {
   handleGetFrontmatter,
   handleUpdateFrontmatter,
+  handleRemoveFrontmatterField,
+  handleAddToArrayField,
+  handleRemoveFromArrayField,
   getFrontmatterSchema,
   updateFrontmatterSchema,
+  removeFrontmatterFieldSchema,
+  addToArrayFieldSchema,
+  removeFromArrayFieldSchema,
 } from './tools/frontmatter.js';
 import {
   handleListTags,
@@ -233,6 +239,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'update_frontmatter':
       return handleUpdateFrontmatter(updateFrontmatterSchema.parse(args));
+
+    case 'remove_frontmatter_field':
+      return handleRemoveFrontmatterField(removeFrontmatterFieldSchema.parse(args));
+
+    case 'add_to_array_field':
+      return handleAddToArrayField(addToArrayFieldSchema.parse(args));
+
+    case 'remove_from_array_field':
+      return handleRemoveFromArrayField(removeFromArrayFieldSchema.parse(args));
 
     // Tag tools
     case 'list_tags':
