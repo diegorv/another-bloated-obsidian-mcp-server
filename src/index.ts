@@ -41,6 +41,24 @@ import {
   handleSearchVault,
   searchVaultSchema,
 } from './tools/search.js';
+import {
+  frontmatterTools,
+  handleGetFrontmatter,
+  handleUpdateFrontmatter,
+  getFrontmatterSchema,
+  updateFrontmatterSchema,
+} from './tools/frontmatter.js';
+import {
+  tagTools,
+  handleListTags,
+  handleAddTag,
+  handleRemoveTag,
+  handleSearchByTag,
+  listTagsSchema,
+  addTagSchema,
+  removeTagSchema,
+  searchByTagSchema,
+} from './tools/tags.js';
 
 // Import config
 import { registerVault } from './services/vault-manager.js';
@@ -59,7 +77,7 @@ const server = new Server(
 );
 
 // Combine all tools
-const allTools = [...vaultTools, ...noteTools, ...searchTools];
+const allTools = [...vaultTools, ...noteTools, ...searchTools, ...frontmatterTools, ...tagTools];
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -102,6 +120,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // Search tools
     case 'search_vault':
       return handleSearchVault(searchVaultSchema.parse(args));
+
+    // Frontmatter tools
+    case 'get_frontmatter':
+      return handleGetFrontmatter(getFrontmatterSchema.parse(args));
+
+    case 'update_frontmatter':
+      return handleUpdateFrontmatter(updateFrontmatterSchema.parse(args));
+
+    // Tag tools
+    case 'list_tags':
+      return handleListTags(listTagsSchema.parse(args));
+
+    case 'add_tag':
+      return handleAddTag(addTagSchema.parse(args));
+
+    case 'remove_tag':
+      return handleRemoveTag(removeTagSchema.parse(args));
+
+    case 'search_by_tag':
+      return handleSearchByTag(searchByTagSchema.parse(args));
 
     default:
       return {
