@@ -1,5 +1,5 @@
 /**
- * Core types for the Obsidian MCP Server
+ * Core types for Another bloated Obsidian MCP Server
  */
 
 export interface VaultConfig {

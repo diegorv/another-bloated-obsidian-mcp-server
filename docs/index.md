@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Obsidian MCP Server
+  name: Another bloated Obsidian MCP Server
   text: AI-powered vault integration
   tagline: A Model Context Protocol server that provides AI assistants with secure access to Obsidian vaults
   actions:

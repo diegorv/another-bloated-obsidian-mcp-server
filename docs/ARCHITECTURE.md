@@ -1,10 +1,10 @@
 # Architecture
 
-Technical architecture and design patterns of the Obsidian MCP Server.
+Technical architecture and design patterns of Another bloated Obsidian MCP Server.
 
 ## Overview
 
-The Obsidian MCP Server follows a layered architecture pattern with clear separation of concerns:
+Another bloated Obsidian MCP Server follows a layered architecture pattern with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

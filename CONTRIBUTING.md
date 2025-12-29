@@ -1,6 +1,6 @@
 # Contributing
 
-Guidelines for contributing to the Obsidian MCP Server.
+Guidelines for contributing to Another bloated Obsidian MCP Server.
 
 ## Getting Started
 

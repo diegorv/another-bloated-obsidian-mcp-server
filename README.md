@@ -1,4 +1,4 @@
-# Obsidian MCP Server
+# Another bloated Obsidian MCP Server
 
 > [!CAUTION]
 > **🔴🔴🔴 EXPERIMENTAL PROJECT - DO NOT USE IN PRODUCTION 🔴🔴🔴**

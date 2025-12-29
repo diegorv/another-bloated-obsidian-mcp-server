@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Obsidian MCP Server',
+  title: 'Another bloated Obsidian MCP Server',
   description: 'MCP server for Obsidian vault integration with AI assistants',
 
   // GitHub Pages deploy

@@ -1,6 +1,6 @@
 # Error Codes
 
-Reference for all error codes returned by the Obsidian MCP Server.
+Reference for all error codes returned by Another bloated Obsidian MCP Server.
 
 ## Error Format
 

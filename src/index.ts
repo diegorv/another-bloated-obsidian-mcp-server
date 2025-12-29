@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Obsidian MCP Server
+ * Another bloated Obsidian MCP Server
  *
  * A Model Context Protocol server that provides AI assistants
  * with access to Obsidian vaults.
@@ -157,7 +157,7 @@ import { logger } from './utils/logger.js';
 // Check for help flag
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`
-Obsidian MCP Server
+Another bloated Obsidian MCP Server
 
 Usage:
   npx tsx src/index.ts [vault-path] [vault-name] [options]
@@ -452,7 +452,7 @@ async function parseArgs(): Promise<void> {
 
 // Main entry point
 async function main(): Promise<void> {
-  logger.info('Starting Obsidian MCP Server');
+  logger.info('Starting Another bloated Obsidian MCP Server');
   logger.info(`Enabled tool groups: ${process.env.OBSIDIAN_MCP_TOOLS || 'all'}`);
 
   await parseArgs();
@@ -460,8 +460,8 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  logger.info('Obsidian MCP Server connected via stdio');
-  console.error('Obsidian MCP Server running on stdio');
+  logger.info('Another bloated Obsidian MCP Server connected via stdio');
+  console.error('Another bloated Obsidian MCP Server running on stdio');
 }
 
 main().catch((error) => {

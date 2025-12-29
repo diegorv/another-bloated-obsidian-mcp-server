@@ -1,5 +1,5 @@
 /**
- * Custom error types for the Obsidian MCP Server
+ * Custom error types for Another bloated Obsidian MCP Server
  */
 
 export class McpError extends Error {

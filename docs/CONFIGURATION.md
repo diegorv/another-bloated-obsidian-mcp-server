@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Complete configuration options for the Obsidian MCP Server.
+Complete configuration options for Another bloated Obsidian MCP Server.
 
 ## Quick Reference
 

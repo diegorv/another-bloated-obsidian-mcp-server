@@ -1,10 +1,10 @@
 # Security
 
-Security model and protections implemented in the Obsidian MCP Server.
+Security model and protections implemented in Another bloated Obsidian MCP Server.
 
 ## Overview
 
-The Obsidian MCP Server is designed with security as a primary concern. All file operations are validated to prevent unauthorized access outside the configured vault directories.
+Another bloated Obsidian MCP Server is designed with security as a primary concern. All file operations are validated to prevent unauthorized access outside the configured vault directories.
 
 ## Threat Model
 

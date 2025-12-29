@@ -1,6 +1,6 @@
 # API Reference
 
-Complete reference for all 47 tools provided by the Obsidian MCP Server.
+Complete reference for all 47 tools provided by Another bloated Obsidian MCP Server.
 
 ## Table of Contents
 

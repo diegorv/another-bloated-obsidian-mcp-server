@@ -1,5 +1,5 @@
 /**
- * Configuration management for the Obsidian MCP Server
+ * Configuration management for Another bloated Obsidian MCP Server
  */
 
 import fs from 'node:fs/promises';
