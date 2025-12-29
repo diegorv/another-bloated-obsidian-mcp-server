@@ -138,9 +138,34 @@ Test bases functionality:
 
 ---
 
+## Expression Parser
+
+The bases parser includes a full expression parser that supports complex filter expressions and formulas.
+
+### Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `==`, `=` | Equality | `status == "active"` |
+| `!=` | Inequality | `status != "done"` |
+| `>` | Greater than | `priority > 5` |
+| `>=` | Greater than or equal | `priority >= 5` |
+| `<` | Less than | `priority < 3` |
+| `<=` | Less than or equal | `priority <= 3` |
+| `&&`, `and` | Logical AND | `status == "active" && priority > 3` |
+| `\|\|`, `or` | Logical OR | `status == "done" \|\| status == "cancelled"` |
+| `!`, `not` | Logical NOT | `!file.name.contains("Template")` |
+| `+` | Addition / Concatenation | `price + tax`, `"Hello " + name` |
+| `-` | Subtraction | `total - discount` |
+| `*` | Multiplication | `quantity * price` |
+| `/` | Division | `total / count` |
+| `%` | Modulo | `index % 2` |
+
+---
+
 ## Supported Filter Types
 
-The bases parser supports these filter patterns:
+### Basic Filters
 
 | Filter Pattern | Description | Example |
 |----------------|-------------|---------|
@@ -149,14 +174,185 @@ The bases parser supports these filter patterns:
 | `file.folder.contains("path")` | Notes in a specific folder | `file.folder.contains("Projects")` |
 | `!filter` | Negation (NOT) | `!file.name.contains("Template")` |
 
+### Advanced Filters (Expression Parser)
+
+| Filter Pattern | Description | Example |
+|----------------|-------------|---------|
+| `property == value` | Property equals value | `status == "active"` |
+| `property != value` | Property not equals | `status != "done"` |
+| `property > value` | Comparison | `priority > 3` |
+| `file.hasTag("tag")` | Check if file has tag | `file.hasTag("project")` |
+| `file.inFolder("path")` | Check if in folder | `file.inFolder("Projects")` |
+| `file.hasProperty("name")` | Check if has property | `file.hasProperty("status")` |
+| `file.hasLink("path")` | Check if links to file | `file.hasLink("Index.md")` |
+| `file.mtime > now() - "7d"` | Date comparison | Modified in last 7 days |
+
 Filters can be combined with:
 - `and`: All conditions must match
 - `or`: Any condition can match
 
+---
+
+## File Properties
+
+The following file properties are available in filters and formulas:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `file.name` | string | File name without extension |
+| `file.path` | string | Relative path from vault root |
+| `file.folder` | string | Parent folder path |
+| `file.ext` | string | File extension (without dot) |
+| `file.basename` | string | File name without path or extension |
+| `file.size` | number | File size in bytes |
+| `file.ctime` | Date | Creation time |
+| `file.mtime` | Date | Last modification time |
+| `file.tags` | List | Tags from frontmatter and content |
+| `file.links` | List | Outgoing wiki links |
+| `file.embeds` | List | Embedded content references |
+
+---
+
+## Global Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `now()` | Current date/time | `now()` |
+| `today()` | Today at midnight | `today()` |
+| `date("string")` | Parse date string | `date("2024-01-15")` |
+| `if(cond, true, false)` | Conditional | `if(status == "done", "Complete", "Pending")` |
+| `min(...values)` | Minimum value | `min(1, 2, 3)` |
+| `max(...values)` | Maximum value | `max(1, 2, 3)` |
+| `number(value)` | Convert to number | `number("42")` |
+| `list(...values)` | Create list | `list(1, 2, 3)` |
+| `link(path, display?)` | Create link | `link("note.md", "My Note")` |
+| `duration("string")` | Parse duration | `duration("7d")` |
+
+---
+
+## Date Arithmetic
+
+### Duration Units
+
+| Unit | Aliases |
+|------|---------|
+| Years | `y`, `year`, `years` |
+| Months | `M`, `month`, `months` |
+| Weeks | `w`, `week`, `weeks` |
+| Days | `d`, `day`, `days` |
+| Hours | `h`, `hour`, `hours` |
+| Minutes | `m`, `min`, `minute`, `minutes` |
+| Seconds | `s`, `sec`, `second`, `seconds` |
+
+### Date Operations
+
+| Operation | Description | Example |
+|-----------|-------------|---------|
+| `date + "duration"` | Add duration | `today() + "7d"` |
+| `date - "duration"` | Subtract duration | `now() - "1M"` |
+| `date1 - date2` | Difference (ms) | `now() - file.ctime` |
+| `(diff).years` | Convert ms to years | `(now() - birthday).years` |
+| `(diff).days` | Convert ms to days | `(now() - file.mtime).days` |
+
+---
+
+## Date Functions
+
+| Function/Property | Description | Example |
+|-------------------|-------------|---------|
+| `date.year` | Year (4 digits) | `birthday.year` |
+| `date.month` | Month (1-12) | `birthday.month` |
+| `date.day` | Day of month | `birthday.day` |
+| `date.hour` | Hour (0-23) | `file.mtime.hour` |
+| `date.minute` | Minute (0-59) | `file.mtime.minute` |
+| `date.second` | Second (0-59) | `file.mtime.second` |
+| `date.format("pattern")` | Format date | `birthday.format("YYYY-MM-DD")` |
+| `date.relative()` | Relative time | `file.mtime.relative()` → "3 days ago" |
+| `date.date()` | Date without time | `now().date()` |
+| `date.time()` | Time string | `now().time()` → "14:30:45" |
+
+---
+
+## String Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `str.contains("value")` | Contains substring | `name.contains("John")` |
+| `str.containsAll("a", "b")` | Contains all | `name.containsAll("John", "Doe")` |
+| `str.containsAny("a", "b")` | Contains any | `status.containsAny("done", "complete")` |
+| `str.startsWith("prefix")` | Starts with | `name.startsWith("Dr.")` |
+| `str.endsWith("suffix")` | Ends with | `file.name.endsWith("_draft")` |
+| `str.lower()` | Lowercase | `name.lower()` |
+| `str.upper()` | Uppercase | `name.upper()` |
+| `str.title()` | Title case | `name.title()` |
+| `str.trim()` | Remove whitespace | `name.trim()` |
+| `str.replace("a", "b")` | Replace text | `status.replace("_", " ")` |
+| `str.split(",")` | Split to list | `tags.split(",")` |
+| `str.slice(start, end)` | Substring | `name.slice(0, 10)` |
+| `str.length` | String length | `name.length` |
+| `str.isEmpty()` | Check if empty | `description.isEmpty()` |
+
+---
+
+## Number Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `num.abs()` | Absolute value | `(-5).abs()` → 5 |
+| `num.ceil()` | Round up | `(4.2).ceil()` → 5 |
+| `num.floor()` | Round down | `(4.8).floor()` → 4 |
+| `num.round(digits?)` | Round | `(4.567).round(2)` → 4.57 |
+| `num.toFixed(digits)` | Format decimal | `(4.5).toFixed(2)` → "4.50" |
+
+---
+
+## List Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `list.contains(value)` | Contains element | `tags.contains("important")` |
+| `list.containsAll(a, b)` | Contains all | `tags.containsAll("a", "b")` |
+| `list.containsAny(a, b)` | Contains any | `tags.containsAny("urgent", "high")` |
+| `list.join(",")` | Join to string | `tags.join(", ")` |
+| `list.sort()` | Sort list | `tags.sort()` |
+| `list.reverse()` | Reverse list | `items.reverse()` |
+| `list.unique()` | Remove duplicates | `tags.unique()` |
+| `list.flat()` | Flatten nested | `nested.flat()` |
+| `list.slice(start, end)` | Slice list | `items.slice(0, 5)` |
+| `list.first()` | First element | `tags.first()` |
+| `list.last()` | Last element | `tags.last()` |
+| `list.length` | List length | `tags.length` |
+| `list.isEmpty()` | Check if empty | `tags.isEmpty()` |
+
+---
+
+## Any Type Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `value.toString()` | Convert to string | `(42).toString()` |
+| `value.isTruthy()` | Check if truthy | `status.isTruthy()` |
+| `value.isType("type")` | Check type | `value.isType("string")` |
+
+Type names: `string`, `number`, `boolean`, `date`, `list`, `array`, `object`, `null`, `undefined`, `link`
+
+---
+
 ## Supported Formula Types
 
-Currently supported:
-- **Age calculation**: `(now() - property).years.floor()` - Calculates years between a date property and now
+Formulas can use any expression with the full expression parser:
+
+```yaml
+formulas:
+  Age: (now() - birthday).years.floor()
+  DaysSinceModified: (now() - file.mtime).days.floor()
+  FullName: firstName + " " + lastName
+  IsOverdue: due_date < today()
+  Priority: if(urgent, "High", "Normal")
+  TagCount: tags.length
+```
+
+---
 
 ## Column Types
 

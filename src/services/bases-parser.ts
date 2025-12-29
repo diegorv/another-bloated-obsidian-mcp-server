@@ -16,6 +16,7 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { validatePath, getRelativePath, shouldIgnorePath } from '../utils/path.js';
 import { parseMarkdown } from './markdown-parser.js';
+import { evaluateExpression, EvaluationContext } from './expression-parser.js';
 
 export interface BaseColumn {
   name: string;
@@ -94,9 +95,84 @@ function parseBaseConfig(content: string): BaseConfig {
 }
 
 /**
- * Evaluates a filter condition against a note
+ * Extended note type with full file properties (Phase 3)
  */
-function evaluateFilter(
+interface NoteWithFileProperties {
+  fileName: string;
+  filePath: string;
+  fullPath: string;
+  frontmatter: Record<string, unknown>;
+  tags: string[];
+  content: string;
+  // Phase 3: File properties
+  fileStats?: {
+    size: number;
+    ctime: Date;
+    mtime: Date;
+  };
+  links: string[];
+  embeds: string[];
+}
+
+/**
+ * Builds an evaluation context from a note for the expression parser
+ */
+function buildEvaluationContext(note: NoteWithFileProperties): EvaluationContext {
+  const folder = path.dirname(note.filePath);
+  const ext = path.extname(note.filePath).slice(1); // Remove leading dot
+  const basename = path.basename(note.filePath, `.${ext}`);
+
+  return {
+    // File object with all properties (Phase 3)
+    file: {
+      name: note.fileName,
+      path: note.filePath,
+      folder: folder === '.' ? '' : folder,
+      ext,
+      basename,
+      size: note.fileStats?.size ?? 0,
+      ctime: note.fileStats?.ctime ?? new Date(),
+      mtime: note.fileStats?.mtime ?? new Date(),
+      tags: note.tags,
+      links: note.links,
+      embeds: note.embeds,
+      properties: note.frontmatter,
+    },
+    // Note properties (frontmatter)
+    note: {
+      tags: note.tags,
+      ...note.frontmatter,
+    },
+    // Direct access to common properties
+    ...note.frontmatter,
+    tags: note.tags,
+  };
+}
+
+/**
+ * Evaluates a filter condition against a note using the expression parser
+ */
+function evaluateFilter(filter: string, note: NoteWithFileProperties): boolean {
+  try {
+    const context = buildEvaluationContext(note);
+    const result = evaluateExpression(filter, context);
+    // Convert result to boolean
+    if (typeof result === 'boolean') return result;
+    if (result === null || result === undefined) return false;
+    if (typeof result === 'number') return result !== 0;
+    if (typeof result === 'string') return result.length > 0;
+    if (Array.isArray(result)) return result.length > 0;
+    return Boolean(result);
+  } catch {
+    // If expression parsing fails, fall back to legacy regex-based evaluation
+    return evaluateFilterLegacy(filter, note);
+  }
+}
+
+/**
+ * Legacy filter evaluation using regex (fallback for backwards compatibility)
+ */
+function evaluateFilterLegacy(
   filter: string,
   note: {
     fileName: string;
@@ -108,7 +184,7 @@ function evaluateFilter(
 ): boolean {
   // Handle negation
   if (filter.startsWith('!')) {
-    return !evaluateFilter(filter.slice(1), note);
+    return !evaluateFilterLegacy(filter.slice(1), note);
   }
 
   // Parse common filter patterns
@@ -178,16 +254,7 @@ function evaluateFilter(
 /**
  * Evaluates all filters against a note
  */
-function evaluateFilters(
-  config: BaseConfig,
-  note: {
-    fileName: string;
-    filePath: string;
-    frontmatter: Record<string, unknown>;
-    tags: string[];
-    content: string;
-  }
-): boolean {
+function evaluateFilters(config: BaseConfig, note: NoteWithFileProperties): boolean {
   if (!config.filters) {
     // No filters means include all notes (probably not intended, but safe)
     return false;
@@ -207,28 +274,38 @@ function evaluateFilters(
 }
 
 /**
+ * Extracts wiki-style links from markdown content
+ * Matches [[link]] and [[link|display]]
+ */
+function extractLinks(content: string): string[] {
+  const links: string[] = [];
+  const linkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+  let match;
+  while ((match = linkRegex.exec(content)) !== null) {
+    links.push(match[1]);
+  }
+  return links;
+}
+
+/**
+ * Extracts embedded content from markdown
+ * Matches ![[embed]] and ![[embed|display]]
+ */
+function extractEmbeds(content: string): string[] {
+  const embeds: string[] = [];
+  const embedRegex = /!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+  let match;
+  while ((match = embedRegex.exec(content)) !== null) {
+    embeds.push(match[1]);
+  }
+  return embeds;
+}
+
+/**
  * Scans all markdown notes in the vault
  */
-async function scanNotes(
-  vaultPath: string
-): Promise<
-  Array<{
-    fileName: string;
-    filePath: string;
-    fullPath: string;
-    frontmatter: Record<string, unknown>;
-    tags: string[];
-    content: string;
-  }>
-> {
-  const notes: Array<{
-    fileName: string;
-    filePath: string;
-    fullPath: string;
-    frontmatter: Record<string, unknown>;
-    tags: string[];
-    content: string;
-  }> = [];
+async function scanNotes(vaultPath: string): Promise<NoteWithFileProperties[]> {
+  const notes: NoteWithFileProperties[] = [];
 
   async function scanDir(dirPath: string): Promise<void> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -243,7 +320,10 @@ async function scanNotes(
         await scanDir(fullPath);
       } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.markdown'))) {
         try {
-          const content = await fs.readFile(fullPath, 'utf-8');
+          const [content, stats] = await Promise.all([
+            fs.readFile(fullPath, 'utf-8'),
+            fs.stat(fullPath),
+          ]);
           const parsed = parseMarkdown(content);
           notes.push({
             fileName: entry.name.replace(/\.(md|markdown)$/, ''),
@@ -252,6 +332,14 @@ async function scanNotes(
             frontmatter: parsed.frontmatter,
             tags: parsed.tags,
             content: parsed.content,
+            // Phase 3: File properties
+            fileStats: {
+              size: stats.size,
+              ctime: stats.birthtime,
+              mtime: stats.mtime,
+            },
+            links: extractLinks(parsed.content),
+            embeds: extractEmbeds(parsed.content),
           });
         } catch {
           // Skip files that can't be read
@@ -362,10 +450,23 @@ function buildColumns(
 }
 
 /**
- * Evaluates a simple formula
- * Currently supports basic age calculation: (now() - property).years.floor()
+ * Evaluates a formula using the expression parser
  */
-function evaluateFormula(
+function evaluateFormula(formula: string, note: NoteWithFileProperties): unknown {
+  try {
+    const context = buildEvaluationContext(note);
+    return evaluateExpression(formula, context);
+  } catch {
+    // Fall back to legacy formula evaluation
+    return evaluateFormulaLegacy(formula, note);
+  }
+}
+
+/**
+ * Legacy formula evaluation (fallback for backwards compatibility)
+ * Supports basic age calculation: (now() - property).years.floor()
+ */
+function evaluateFormulaLegacy(
   formula: string,
   note: { frontmatter: Record<string, unknown> }
 ): unknown {
@@ -396,19 +497,25 @@ function evaluateFormula(
 /**
  * Builds rows from matching notes
  */
-function buildRows(
-  config: BaseConfig,
-  notes: Array<{
-    fileName: string;
-    filePath: string;
-    frontmatter: Record<string, unknown>;
-    tags: string[];
-  }>
-): BaseRow[] {
+function buildRows(config: BaseConfig, notes: NoteWithFileProperties[]): BaseRow[] {
   return notes.map((note, index) => {
+    const folder = path.dirname(note.filePath);
+    const ext = path.extname(note.filePath).slice(1);
+    const basename = path.basename(note.filePath, `.${ext}`);
+
     const values: Record<string, unknown> = {
+      // Phase 3: Complete file properties
       'file.name': note.fileName,
       'file.path': note.filePath,
+      'file.folder': folder === '.' ? '' : folder,
+      'file.ext': ext,
+      'file.basename': basename,
+      'file.size': note.fileStats?.size ?? 0,
+      'file.ctime': note.fileStats?.ctime ?? null,
+      'file.mtime': note.fileStats?.mtime ?? null,
+      'file.tags': note.tags,
+      'file.links': note.links,
+      'file.embeds': note.embeds,
     };
 
     // Add frontmatter values
