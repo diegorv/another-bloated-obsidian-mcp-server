@@ -1319,7 +1319,7 @@ Apply a template with variables and return processed content without creating a 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | name | string | Yes | - | Name of the template |
-| title | string | No | - | Title to replace {{title}} |
+| title | string | No | - | Title to replace `{{title}}` |
 | variables | object | No | - | Custom variables as key-value pairs |
 
 **Supported Variables**

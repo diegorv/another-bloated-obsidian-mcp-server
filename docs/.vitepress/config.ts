@@ -7,11 +7,28 @@ export default defineConfig({
   // GitHub Pages deploy
   base: '/another-bloated-obsidian-mcp-server/',
 
-  // Prevent Vue from interpreting {{ }} as template syntax
-  vue: {
-    template: {
-      compilerOptions: {
-        delimiters: ['${', '}$'] // Use different delimiters to avoid conflicts
+  // Escape {{ }} in markdown to prevent Vue interpretation
+  markdown: {
+    config: (md) => {
+      // Store original fence renderer
+      const defaultFence = md.renderer.rules.fence!
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx]
+        // Escape {{ and }} in code blocks
+        token.content = token.content
+          .replace(/\{\{/g, '&#123;&#123;')
+          .replace(/\}\}/g, '&#125;&#125;')
+        return defaultFence(tokens, idx, options, env, self)
+      }
+
+      // Also escape in inline code
+      const defaultCodeInline = md.renderer.rules.code_inline!
+      md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+        const token = tokens[idx]
+        token.content = token.content
+          .replace(/\{\{/g, '&#123;&#123;')
+          .replace(/\}\}/g, '&#125;&#125;')
+        return defaultCodeInline(tokens, idx, options, env, self)
       }
     }
   },
