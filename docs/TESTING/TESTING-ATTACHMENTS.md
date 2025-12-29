@@ -101,7 +101,7 @@ Parameters:
 
 Expected:
 - List of attachments referenced in the note
-- Format: ![[image.png]] or ![](path/to/image.png)
+- Format: `![[image.png]]` or `![](path/to/image.png)`
 
 ---
 

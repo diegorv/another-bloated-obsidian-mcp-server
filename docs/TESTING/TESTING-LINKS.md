@@ -10,7 +10,7 @@ Tools: `get_outlinks`, `get_backlinks`, `find_orphans`, `find_broken_links`, `ge
 Get all outgoing links from "some-note.md"
 ```
 
-Expected: Returns list of notes that this note links to (both [[wikilinks]] and [markdown](links)).
+Expected: Returns list of notes that this note links to (both `[[wikilinks]]` and `[markdown](links)`).
 
 ---
 

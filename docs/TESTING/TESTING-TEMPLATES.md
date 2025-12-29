@@ -73,7 +73,7 @@ Expected: Note is created with all custom variables substituted.
 ## Test 7: Template Date Formatting
 
 ```
-Apply a template that uses {{date:YYYY-MM-DD}} and {{date:dddd, MMMM D}} to see different date formats
+Apply a template that uses `{{date:YYYY-MM-DD}}` and `{{date:dddd, MMMM D}}` to see different date formats
 ```
 
 Expected: Dates are formatted according to the format strings.
@@ -101,7 +101,7 @@ The following variables are supported in templates:
 
 - `{{title}}` - The title parameter
 - `{{date}}` - Current date (YYYY-MM-DD format)
-- `{{date:FORMAT}}` - Current date with custom format (e.g., {{date:MMMM D, YYYY}})
+- `{{date:FORMAT}}` - Current date with custom format (e.g., `{{date:MMMM D, YYYY}}`)
 - `{{time}}` - Current time (HH:mm format)
 - `{{time:FORMAT}}` - Current time with custom format
 - Custom variables passed via the variables parameter

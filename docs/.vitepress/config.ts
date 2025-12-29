@@ -62,6 +62,7 @@ export default defineConfig({
         text: 'Testing Guides',
         collapsed: true,
         items: [
+          { text: 'Overview', link: '/TESTING/' },
           { text: 'Vault', link: '/TESTING/TESTING-VAULT' },
           { text: 'Notes', link: '/TESTING/TESTING-NOTES' },
           { text: 'Search', link: '/TESTING/TESTING-SEARCH' },
