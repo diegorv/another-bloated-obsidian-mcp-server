@@ -213,8 +213,7 @@ claude mcp add obsidian \
 
 ### Claude Desktop
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+Config file: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
 {

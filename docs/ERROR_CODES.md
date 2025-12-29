@@ -118,7 +118,7 @@ The path contains invalid characters or is malformed.
 
 **Common Causes:**
 - Path contains characters: `< > : " | ? * \`
-- Path uses Windows reserved name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+- Path uses reserved system name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
 - Path is empty or contains only whitespace
 
 **Solutions:**

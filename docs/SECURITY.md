@@ -95,7 +95,7 @@ const args = readNoteSchema.parse(request.arguments);
 
 ### 4. Reserved Name Blocking
 
-Windows reserved names are blocked to prevent system conflicts:
+Reserved system names are blocked to prevent conflicts:
 
 ```typescript
 const RESERVED_NAMES = [
@@ -161,7 +161,6 @@ Security tests are located in `src/__tests__/security/`:
 describe('Path Traversal Prevention', () => {
   it('blocks ../etc/passwd', () => { ... });
   it('blocks /etc/passwd', () => { ... });
-  it('blocks ..\\..\\windows', () => { ... });
 });
 
 // Symlink escape

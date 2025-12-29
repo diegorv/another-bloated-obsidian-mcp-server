@@ -106,9 +106,7 @@ Edit `~/.claude.json`:
 
 ### Option 3: Claude Desktop App
 
-Edit the config file:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Edit the config file at `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
