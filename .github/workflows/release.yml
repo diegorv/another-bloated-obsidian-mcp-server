@@ -40,3 +40,9 @@ jobs:
         id: release
         with:
           release-type: node
+
+      - name: Enable auto-merge for release PR
+        if: steps.release.outputs.pr
+        run: gh pr merge --auto --squash "${{ steps.release.outputs.pr }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
