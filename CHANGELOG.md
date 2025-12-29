@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.2.0...v1.3.0) (2025-12-29)
+
+
+### Features
+
+* **bases:** add full expression parser with operators and functions ([1a4d33b](https://github.com/diegorv/another-bloated-obsidian-mcp-server/commit/1a4d33bca0c01b8d4f36d6dcc7eba5f39798fe43))
+* **bases:** add phases 12-16 with advanced features ([62ca59e](https://github.com/diegorv/another-bloated-obsidian-mcp-server/commit/62ca59e9ac35a89e697dbd3b775f3450bebf64f0))
+
 ## [1.2.0](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.1.1...v1.2.0) (2025-12-29)
 
 
