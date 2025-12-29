@@ -1049,4 +1049,174 @@ describe('Expression Parser', () => {
       });
     });
   });
+
+  // ============================================================================
+  // Phase 12: Links and Objects Tests
+  // ============================================================================
+  describe('Links and Objects (Phase 12)', () => {
+    describe('Link Methods', () => {
+      it('should convert link to file with asFile', () => {
+        const link = { type: 'link', path: 'folder/note.md' };
+        const context = { myLink: link };
+        const result = evaluateExpression('myLink.asFile()', context) as any;
+
+        expect(result.type).toBe('file');
+        expect(result.path).toBe('folder/note.md');
+        expect(result.name).toBe('note');
+        expect(result.ext).toBe('md');
+        expect(result.folder).toBe('folder');
+      });
+
+      it('should check linksTo', () => {
+        const link = { type: 'link', path: 'folder/note.md' };
+        const context = { myLink: link };
+
+        expect(evaluateExpression('myLink.linksTo("folder/note.md")', context)).toBe(true);
+        expect(evaluateExpression('myLink.linksTo("note.md")', context)).toBe(true);
+        expect(evaluateExpression('myLink.linksTo("other.md")', context)).toBe(false);
+      });
+    });
+
+    describe('Object Methods', () => {
+      it('should check isEmpty', () => {
+        expect(evaluateExpression('obj.isEmpty()', { obj: {} })).toBe(true);
+        expect(evaluateExpression('obj.isEmpty()', { obj: { a: 1 } })).toBe(false);
+      });
+
+      it('should get keys', () => {
+        const obj = { a: 1, b: 2, c: 3 };
+        expect(evaluateExpression('obj.keys()', { obj })).toEqual(['a', 'b', 'c']);
+      });
+
+      it('should get values', () => {
+        const obj = { a: 1, b: 2, c: 3 };
+        expect(evaluateExpression('obj.values()', { obj })).toEqual([1, 2, 3]);
+      });
+
+      it('should get entries', () => {
+        const obj = { a: 1, b: 2 };
+        expect(evaluateExpression('obj.entries()', { obj })).toEqual([['a', 1], ['b', 2]]);
+      });
+
+      it('should check hasKey', () => {
+        const obj = { a: 1, b: 2 };
+        expect(evaluateExpression('obj.hasKey("a")', { obj })).toBe(true);
+        expect(evaluateExpression('obj.hasKey("c")', { obj })).toBe(false);
+      });
+    });
+
+    describe('Regex', () => {
+      it('should tokenize regex literals', () => {
+        const tokenizer = new Tokenizer('/test/i');
+        const tokens = tokenizer.tokenize();
+        expect(tokens[0].type).toBe('REGEX');
+        expect(tokens[0].value).toEqual({ pattern: 'test', flags: 'i' });
+      });
+
+      it('should evaluate regex matches', () => {
+        expect(evaluateExpression('/hello/.matches("hello world")', {})).toBe(true);
+        expect(evaluateExpression('/hello/.matches("goodbye world")', {})).toBe(false);
+      });
+
+      it('should evaluate regex with flags', () => {
+        expect(evaluateExpression('/HELLO/i.matches("hello")', {})).toBe(true);
+        expect(evaluateExpression('/HELLO/.matches("hello")', {})).toBe(false);
+      });
+
+      it('should evaluate regex test (alias for matches)', () => {
+        expect(evaluateExpression('/\\d+/.test("abc123")', {})).toBe(true);
+        expect(evaluateExpression('/\\d+/.test("abc")', {})).toBe(false);
+      });
+
+      it('should evaluate regex exec', () => {
+        const result = evaluateExpression('/hello/.exec("hello world")', {}) as any;
+        expect(result).toBeInstanceOf(Array);
+        expect(result[0]).toBe('hello');
+      });
+
+      it('should differentiate between regex and division', () => {
+        // Division: value followed by /
+        expect(evaluateExpression('10 / 2', {})).toBe(5);
+        expect(evaluateExpression('a / b', { a: 10, b: 2 })).toBe(5);
+      });
+    });
+  });
+
+  // ============================================================================
+  // Phase 15: `this` Object Tests
+  // ============================================================================
+  describe('This Object (Phase 15)', () => {
+    it('should access this.file', () => {
+      const context = {
+        file: {
+          name: 'current',
+          path: 'current.md',
+        },
+      };
+
+      expect(evaluateExpression('this.file.name', context)).toBe('current');
+    });
+
+    it('should use explicit this context if provided', () => {
+      const context = {
+        file: { name: 'current', path: 'current.md' },
+        this: { file: { name: 'embedded', path: 'embedded.md' } },
+      };
+
+      expect(evaluateExpression('this.file.name', context)).toBe('embedded');
+    });
+
+    it('should allow comparing file with this.file', () => {
+      const context = {
+        file: { name: 'current', path: 'current.md', links: ['other.md'] },
+      };
+
+      expect(evaluateExpression('file.name == this.file.name', context)).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // Phase 16: Advanced Functions Tests
+  // ============================================================================
+  describe('Advanced Functions (Phase 16)', () => {
+    it('should create file objects', () => {
+      const result = evaluateExpression('file("folder/note.md")', {}) as any;
+      expect(result.type).toBe('file');
+      expect(result.path).toBe('folder/note.md');
+      expect(result.name).toBe('note');
+      expect(result.ext).toBe('md');
+      expect(result.folder).toBe('folder');
+    });
+
+    it('should create image objects', () => {
+      const result = evaluateExpression('image("path/to/image.png")', {}) as any;
+      expect(result.type).toBe('image');
+      expect(result.path).toBe('path/to/image.png');
+    });
+
+    it('should create icon objects', () => {
+      const result = evaluateExpression('icon("star")', {}) as any;
+      expect(result.type).toBe('icon');
+      expect(result.name).toBe('star');
+    });
+
+    it('should create html objects', () => {
+      const result = evaluateExpression('html("<b>bold</b>")', {}) as any;
+      expect(result.type).toBe('html');
+      expect(result.content).toBe('<b>bold</b>');
+    });
+
+    it('should escape HTML', () => {
+      expect(evaluateExpression('escapeHTML("<script>alert(1)</script>")', {}))
+        .toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+    });
+
+    it('should identify types correctly', () => {
+      expect(evaluateExpression('file("test.md").isType("file")', {})).toBe(true);
+      expect(evaluateExpression('image("test.png").isType("image")', {})).toBe(true);
+      expect(evaluateExpression('icon("star").isType("icon")', {})).toBe(true);
+      expect(evaluateExpression('html("<b>").isType("html")', {})).toBe(true);
+      expect(evaluateExpression('/test/.isType("regex")', {})).toBe(true);
+    });
+  });
 });

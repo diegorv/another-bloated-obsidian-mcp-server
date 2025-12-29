@@ -30,6 +30,24 @@ export interface BaseRow {
   values: Record<string, unknown>;
 }
 
+// Phase 14: View configuration
+export interface BaseView {
+  type: 'table' | 'cards' | 'list' | 'map';
+  name?: string;
+  limit?: number;
+  filters?: {
+    and?: string[];
+    or?: string[];
+  };
+  order?: string[];
+  sort?: Array<{ property: string; direction: 'ASC' | 'DESC' | 'asc' | 'desc' }>;
+  groupBy?: {
+    property: string;
+    direction?: 'ASC' | 'DESC' | 'asc' | 'desc';
+  };
+  summaries?: Record<string, string>;
+}
+
 export interface BaseConfig {
   filters?: {
     and?: string[];
@@ -37,12 +55,16 @@ export interface BaseConfig {
   };
   formulas?: Record<string, string>;
   properties?: Record<string, { displayName?: string }>;
-  views?: Array<{
-    type: string;
-    name: string;
-    order?: string[];
-    sort?: Array<{ property: string; direction: string }>;
-  }>;
+  views?: BaseView[];
+  // Phase 13: Summaries configuration
+  summaries?: Record<string, string>;
+}
+
+// Phase 13: Summary result type
+export interface BaseSummary {
+  column: string;
+  type: string;
+  value: unknown;
 }
 
 export interface BaseData {
@@ -51,6 +73,10 @@ export interface BaseData {
   columns: BaseColumn[];
   rows: BaseRow[];
   config?: BaseConfig;
+  // Phase 13: Computed summaries
+  summaries?: BaseSummary[];
+  // Phase 14: Parsed views
+  views?: BaseView[];
 }
 
 /**
@@ -542,6 +568,214 @@ function buildRows(config: BaseConfig, notes: NoteWithFileProperties[]): BaseRow
   });
 }
 
+// ============================================================================
+// Phase 13: Summary Functions
+// ============================================================================
+
+/**
+ * Built-in summary functions for aggregating column values
+ */
+const summaryFunctions: Record<string, (values: unknown[]) => unknown> = {
+  // Number summaries
+  Average: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    if (nums.length === 0) return null;
+    return nums.reduce((a, b) => a + b, 0) / nums.length;
+  },
+  Min: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    if (nums.length === 0) return null;
+    return Math.min(...nums);
+  },
+  Max: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    if (nums.length === 0) return null;
+    return Math.max(...nums);
+  },
+  Sum: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    return nums.reduce((a, b) => a + b, 0);
+  },
+  Range: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    if (nums.length === 0) return null;
+    return Math.max(...nums) - Math.min(...nums);
+  },
+  Median: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number').sort((a, b) => a - b);
+    if (nums.length === 0) return null;
+    const mid = Math.floor(nums.length / 2);
+    return nums.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+  },
+  Stddev: (values) => {
+    const nums = values.filter((v): v is number => typeof v === 'number');
+    if (nums.length === 0) return null;
+    const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+    const squareDiffs = nums.map((n) => Math.pow(n - mean, 2));
+    const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / nums.length;
+    return Math.sqrt(avgSquareDiff);
+  },
+
+  // Date summaries
+  Earliest: (values) => {
+    const dates = values
+      .filter((v) => v !== null && v !== undefined)
+      .map((v) => (v instanceof Date ? v : new Date(String(v))))
+      .filter((d) => !isNaN(d.getTime()));
+    if (dates.length === 0) return null;
+    return new Date(Math.min(...dates.map((d) => d.getTime())));
+  },
+  Latest: (values) => {
+    const dates = values
+      .filter((v) => v !== null && v !== undefined)
+      .map((v) => (v instanceof Date ? v : new Date(String(v))))
+      .filter((d) => !isNaN(d.getTime()));
+    if (dates.length === 0) return null;
+    return new Date(Math.max(...dates.map((d) => d.getTime())));
+  },
+
+  // Boolean summaries
+  Checked: (values) => {
+    return values.filter((v) => v === true).length;
+  },
+  Unchecked: (values) => {
+    return values.filter((v) => v === false).length;
+  },
+
+  // Any type summaries
+  Count: (values) => {
+    return values.length;
+  },
+  Empty: (values) => {
+    return values.filter((v) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)).length;
+  },
+  Filled: (values) => {
+    return values.filter((v) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)).length;
+  },
+  Unique: (values) => {
+    const stringified = values.map((v) => JSON.stringify(v));
+    return new Set(stringified).size;
+  },
+};
+
+/**
+ * Calculates summaries for a given set of rows
+ */
+function calculateSummaries(
+  config: BaseConfig,
+  rows: BaseRow[],
+  columns: BaseColumn[]
+): BaseSummary[] {
+  const summaries: BaseSummary[] = [];
+
+  if (!config.summaries) return summaries;
+
+  for (const [columnName, summaryType] of Object.entries(config.summaries)) {
+    // Get all values for this column
+    const values = rows.map((row) => row.values[columnName]);
+
+    // Check if it's a built-in summary
+    const builtInFunc = summaryFunctions[summaryType];
+    if (builtInFunc) {
+      summaries.push({
+        column: columnName,
+        type: summaryType,
+        value: builtInFunc(values),
+      });
+    } else {
+      // Try to evaluate as a custom expression
+      // Custom summaries have access to a 'values' array
+      try {
+        const result = evaluateExpression(summaryType, {
+          values,
+          rows,
+          columns,
+        });
+        summaries.push({
+          column: columnName,
+          type: 'custom',
+          value: result,
+        });
+      } catch {
+        summaries.push({
+          column: columnName,
+          type: summaryType,
+          value: null,
+        });
+      }
+    }
+  }
+
+  return summaries;
+}
+
+/**
+ * Applies view-specific filters, sorting, and limits to rows
+ */
+function applyViewConfig(
+  rows: BaseRow[],
+  view: BaseView,
+  notes: NoteWithFileProperties[]
+): BaseRow[] {
+  let result = [...rows];
+
+  // Apply view-specific filters
+  if (view.filters) {
+    const viewConfig: BaseConfig = { filters: view.filters };
+    const matchingNoteIndices = new Set<number>();
+
+    notes.forEach((note, idx) => {
+      if (evaluateFilters(viewConfig, note)) {
+        matchingNoteIndices.add(idx);
+      }
+    });
+
+    result = result.filter((row) => matchingNoteIndices.has(parseInt(row.id, 10)));
+  }
+
+  // Apply sort
+  if (view.sort && view.sort.length > 0) {
+    result.sort((a, b) => {
+      for (const sortConfig of view.sort!) {
+        const { property, direction } = sortConfig;
+        const aVal = a.values[property];
+        const bVal = b.values[property];
+
+        if (aVal === bVal) continue;
+        if (aVal === null || aVal === undefined) return 1;
+        if (bVal === null || bVal === undefined) return -1;
+
+        const isDesc = direction.toUpperCase() === 'DESC';
+        const comparison = aVal < bVal ? -1 : 1;
+        return isDesc ? -comparison : comparison;
+      }
+      return 0;
+    });
+  }
+
+  // Apply groupBy (returns rows grouped, but flattened for simplicity)
+  if (view.groupBy) {
+    const { property, direction } = view.groupBy;
+    result.sort((a, b) => {
+      const aVal = a.values[property];
+      const bVal = b.values[property];
+      if (aVal === bVal) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      const isDesc = direction?.toUpperCase() === 'DESC';
+      const comparison = aVal < bVal ? -1 : 1;
+      return isDesc ? -comparison : comparison;
+    });
+  }
+
+  // Apply limit
+  if (view.limit && view.limit > 0) {
+    result = result.slice(0, view.limit);
+  }
+
+  return result;
+}
+
 /**
  * Parses a .base file and returns the data by querying matching notes
  */
@@ -569,12 +803,24 @@ export async function parseBase(vaultPath: string, basePath: string): Promise<Ba
   const columns = buildColumns(config, matchingNotes);
   const rows = buildRows(config, matchingNotes);
 
+  // Phase 13: Calculate summaries
+  const summaries = calculateSummaries(config, rows, columns);
+
+  // Phase 14: Process views if present
+  const views = config.views?.map((view) => ({
+    ...view,
+    // Apply view config to get filtered/sorted rows count
+    rowCount: applyViewConfig(rows, view, matchingNotes).length,
+  }));
+
   return {
     name,
     path: relativePath,
     columns,
     rows,
     config,
+    summaries: summaries.length > 0 ? summaries : undefined,
+    views: views as BaseView[] | undefined,
   };
 }
 
@@ -632,4 +878,64 @@ export async function queryBase(
   }
 
   return rows;
+}
+
+/**
+ * Phase 14: Queries a base with a specific view applied
+ */
+export async function queryBaseView(
+  vaultPath: string,
+  basePath: string,
+  viewIndex: number = 0
+): Promise<{ rows: BaseRow[]; view: BaseView | null; summaries: BaseSummary[] }> {
+  const base = await parseBase(vaultPath, basePath);
+
+  if (!base.config?.views || base.config.views.length === 0) {
+    return { rows: base.rows, view: null, summaries: base.summaries || [] };
+  }
+
+  const view = base.config.views[viewIndex];
+  if (!view) {
+    return { rows: base.rows, view: null, summaries: base.summaries || [] };
+  }
+
+  // We need to re-scan notes to apply view filters
+  const allNotes = await scanNotesInternal(vaultPath);
+  const matchingNotes = allNotes.filter((note) => evaluateFilters(base.config!, note));
+
+  const rows = applyViewConfig(base.rows, view, matchingNotes);
+
+  // Calculate view-specific summaries if defined
+  let summaries = base.summaries || [];
+  if (view.summaries) {
+    const viewConfig: BaseConfig = { summaries: view.summaries };
+    summaries = calculateSummaries(viewConfig, rows, base.columns);
+  }
+
+  return { rows, view, summaries };
+}
+
+/**
+ * Internal function to scan notes (avoids exporting implementation details)
+ */
+async function scanNotesInternal(vaultPath: string): Promise<NoteWithFileProperties[]> {
+  return scanNotes(vaultPath);
+}
+
+/**
+ * Phase 13: Export summary functions for direct use
+ */
+export function calculateColumnSummary(
+  values: unknown[],
+  summaryType: string
+): unknown {
+  const func = summaryFunctions[summaryType];
+  return func ? func(values) : null;
+}
+
+/**
+ * Phase 13: Get available summary types
+ */
+export function getAvailableSummaryTypes(): string[] {
+  return Object.keys(summaryFunctions);
 }

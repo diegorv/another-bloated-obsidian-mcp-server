@@ -20,6 +20,7 @@ export type TokenType =
   | 'BOOLEAN'
   | 'NULL'
   | 'IDENTIFIER'
+  | 'REGEX'
   | 'DOT'
   | 'LPAREN'
   | 'RPAREN'
@@ -44,7 +45,7 @@ export type TokenType =
 
 export interface Token {
   type: TokenType;
-  value: string | number | boolean | null;
+  value: string | number | boolean | null | { pattern: string; flags: string };
   position: number;
 }
 
@@ -55,7 +56,8 @@ export type ASTNode =
   | UnaryOpNode
   | MemberAccessNode
   | CallNode
-  | IndexAccessNode;
+  | IndexAccessNode
+  | RegexNode;
 
 export interface LiteralNode {
   type: 'Literal';
@@ -98,24 +100,44 @@ export interface IndexAccessNode {
   index: ASTNode;
 }
 
+export interface RegexNode {
+  type: 'Regex';
+  pattern: string;
+  flags: string;
+}
+
+// Link object type (Phase 12)
+export interface LinkObject {
+  type: 'link';
+  path: string;
+  display?: string;
+}
+
+// File object interface (all properties optional for flexibility)
+export interface FileObject {
+  name: string;
+  path?: string;
+  folder?: string;
+  ext?: string;
+  basename?: string;
+  size?: number;
+  ctime?: Date;
+  mtime?: Date;
+  tags?: string[];
+  links?: string[];
+  embeds?: string[];
+  properties?: Record<string, unknown>;
+}
+
 export interface EvaluationContext {
   // File properties
-  file?: {
-    name: string;
-    path: string;
-    folder: string;
-    ext: string;
-    basename: string;
-    size: number;
-    ctime: Date;
-    mtime: Date;
-    tags: string[];
-    links: string[];
-    embeds: string[];
-    properties: Record<string, unknown>;
-  };
+  file?: FileObject;
   // Note/frontmatter properties
   note?: Record<string, unknown>;
+  // Phase 15: `this` context (current file when base is embedded)
+  this?: {
+    file?: FileObject;
+  };
   // All properties flattened for direct access
   [key: string]: unknown;
 }
@@ -177,6 +199,12 @@ export class Tokenizer {
     // Numbers
     if (/\d/.test(char) || (char === '.' && /\d/.test(this.peek(1)))) {
       return this.readNumber();
+    }
+
+    // Regex literals (Phase 12) - /pattern/flags
+    // Only parse as regex if followed by valid regex content (not a division)
+    if (char === '/' && this.canBeRegex()) {
+      return this.readRegex();
     }
 
     // Identifiers and keywords
@@ -335,6 +363,97 @@ export class Tokenizer {
     }
 
     return { type: 'IDENTIFIER', value, position: startPos };
+  }
+
+  // Phase 12: Check if / should be parsed as regex (not division)
+  private canBeRegex(): boolean {
+    // Look at what came before to determine if this is a regex
+    // If the last token was a value (number, string, identifier, ), ]), it's division
+    const lastToken = this.tokens[this.tokens.length - 1];
+    if (!lastToken) return true;
+
+    const nonRegexPrecedingTokens = ['NUMBER', 'STRING', 'BOOLEAN', 'IDENTIFIER', 'RPAREN', 'RBRACKET'];
+    if (nonRegexPrecedingTokens.includes(lastToken.type)) {
+      return false;
+    }
+
+    // Also check what follows - if it's whitespace followed by an operator or end, it's division
+    // Skip the current / and check what's next
+    const nextPos = this.position + 1;
+    let checkPos = nextPos;
+
+    // Skip any whitespace
+    while (checkPos < this.input.length && /\s/.test(this.input[checkPos])) {
+      checkPos++;
+    }
+
+    // If we hit end of input or an operator right after /, it's probably not a regex
+    if (checkPos >= this.input.length) return false;
+    const nextChar = this.input[checkPos];
+
+    // If the next non-whitespace char is an operator or special char, it's division
+    const divisionFollowers = ['+', '-', '*', '/', '%', ')', ']', ',', ';', '&', '|', '=', '!', '<', '>', ':'];
+    if (divisionFollowers.includes(nextChar)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private readRegex(): Token {
+    const startPos = this.position;
+    this.advance(); // skip opening /
+    let pattern = '';
+    let escaped = false;
+    let inCharClass = false;
+
+    while (this.position < this.input.length) {
+      const char = this.peek();
+
+      if (escaped) {
+        pattern += char;
+        escaped = false;
+        this.advance();
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        pattern += char;
+        this.advance();
+        continue;
+      }
+
+      if (char === '[' && !inCharClass) {
+        inCharClass = true;
+        pattern += char;
+        this.advance();
+        continue;
+      }
+
+      if (char === ']' && inCharClass) {
+        inCharClass = false;
+        pattern += char;
+        this.advance();
+        continue;
+      }
+
+      if (char === '/' && !inCharClass) {
+        this.advance(); // skip closing /
+        break;
+      }
+
+      pattern += char;
+      this.advance();
+    }
+
+    // Read flags
+    let flags = '';
+    while (this.position < this.input.length && /[gimsuy]/.test(this.peek())) {
+      flags += this.advance();
+    }
+
+    return { type: 'REGEX', value: { pattern, flags }, position: startPos };
   }
 }
 
@@ -564,6 +683,13 @@ export class Parser {
         return expr;
       }
 
+      // Phase 12: Regex literals
+      case 'REGEX': {
+        this.advance();
+        const regexValue = token.value as { pattern: string; flags: string };
+        return { type: 'Regex', pattern: regexValue.pattern, flags: regexValue.flags };
+      }
+
       default:
         throw new Error(`Unexpected token '${token.type}' at position ${token.position}`);
     }
@@ -623,6 +749,44 @@ export class Evaluator {
     this.globalFunctions.set('duration', (str: unknown) => {
       return this.parseDuration(String(str));
     });
+
+    // Phase 16: Advanced functions
+    this.globalFunctions.set('file', (path: unknown) => {
+      // Create a minimal File-like object from a path
+      const pathStr = String(path);
+      const parts = pathStr.split('/');
+      const fullName = parts[parts.length - 1] || '';
+      const extMatch = fullName.match(/\.([^.]+)$/);
+      return {
+        type: 'file',
+        path: pathStr,
+        name: fullName.replace(/\.[^.]+$/, ''),
+        basename: fullName.replace(/\.[^.]+$/, ''),
+        ext: extMatch ? extMatch[1] : '',
+        folder: parts.slice(0, -1).join('/'),
+      };
+    });
+
+    this.globalFunctions.set('image', (path: unknown) => {
+      return { type: 'image', path: String(path) };
+    });
+
+    this.globalFunctions.set('icon', (name: unknown) => {
+      return { type: 'icon', name: String(name) };
+    });
+
+    this.globalFunctions.set('html', (content: unknown) => {
+      return { type: 'html', content: String(content) };
+    });
+
+    this.globalFunctions.set('escapeHTML', (str: unknown) => {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    });
   }
 
   evaluate(node: ASTNode, context: EvaluationContext): unknown {
@@ -648,12 +812,21 @@ export class Evaluator {
       case 'IndexAccess':
         return this.evaluateIndexAccess(node, context);
 
+      // Phase 12: Regex literals
+      case 'Regex':
+        return { type: 'regex', pattern: node.pattern, flags: node.flags };
+
       default:
         throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
     }
   }
 
   private resolveIdentifier(name: string, context: EvaluationContext): unknown {
+    // Phase 15: Handle `this` keyword
+    if (name === 'this') {
+      return context.this || { file: context.file };
+    }
+
     // Check direct context properties first
     if (name in context) {
       return context[name];
@@ -846,11 +1019,122 @@ export class Evaluator {
     }
 
     // File methods (Phase 4) - handled via context.file object
-    if (typeof object === 'object' && object !== null && 'name' in object && 'path' in object) {
-      return this.callFileMethod(object as EvaluationContext['file'], method, args);
+    if (typeof object === 'object' && object !== null && 'name' in object && !('type' in object)) {
+      return this.callFileMethod(object as FileObject, method, args);
+    }
+
+    // Phase 12: Link methods
+    if (this.isLink(object)) {
+      return this.callLinkMethod(object as LinkObject, method, args);
+    }
+
+    // Phase 12: Regex methods
+    if (this.isRegex(object)) {
+      return this.callRegexMethod(object as { type: 'regex'; pattern: string; flags: string }, method, args);
+    }
+
+    // Phase 12: Object methods (for plain objects)
+    if (typeof object === 'object' && object !== null && !Array.isArray(object)) {
+      return this.callObjectMethod(object as Record<string, unknown>, method, args);
     }
 
     return undefined;
+  }
+
+  // Phase 12: Check if value is a Link
+  private isLink(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && (value as any).type === 'link';
+  }
+
+  // Phase 12: Check if value is a Regex
+  private isRegex(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && (value as any).type === 'regex';
+  }
+
+  // Phase 12: Link methods
+  private callLinkMethod(link: LinkObject, method: string, args: unknown[]): unknown {
+    switch (method) {
+      case 'asFile': {
+        // Convert link to a File-like object
+        const pathStr = link.path;
+        const parts = pathStr.split('/');
+        const fullName = parts[parts.length - 1] || '';
+        const extMatch = fullName.match(/\.([^.]+)$/);
+        return {
+          type: 'file',
+          path: pathStr,
+          name: fullName.replace(/\.[^.]+$/, ''),
+          basename: fullName.replace(/\.[^.]+$/, ''),
+          ext: extMatch ? extMatch[1] : '',
+          folder: parts.slice(0, -1).join('/'),
+        };
+      }
+      case 'linksTo': {
+        // Check if this link points to a given file/path
+        const target = args[0];
+        if (typeof target === 'string') {
+          return link.path === target || link.path.endsWith('/' + target);
+        }
+        if (typeof target === 'object' && target !== null && 'path' in target) {
+          return link.path === (target as { path: string }).path;
+        }
+        return false;
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  // Phase 12: Regex methods
+  private callRegexMethod(regex: { type: 'regex'; pattern: string; flags: string }, method: string, args: unknown[]): unknown {
+    switch (method) {
+      case 'matches': {
+        try {
+          const re = new RegExp(regex.pattern, regex.flags);
+          return re.test(String(args[0]));
+        } catch {
+          return false;
+        }
+      }
+      case 'test': {
+        // Alias for matches
+        try {
+          const re = new RegExp(regex.pattern, regex.flags);
+          return re.test(String(args[0]));
+        } catch {
+          return false;
+        }
+      }
+      case 'exec': {
+        try {
+          const re = new RegExp(regex.pattern, regex.flags);
+          const match = re.exec(String(args[0]));
+          return match ? Array.from(match) : null;
+        } catch {
+          return null;
+        }
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  // Phase 12: Object methods
+  private callObjectMethod(obj: Record<string, unknown>, method: string, _args: unknown[]): unknown {
+    switch (method) {
+      case 'isEmpty':
+        return Object.keys(obj).length === 0;
+      case 'keys':
+        return Object.keys(obj);
+      case 'values':
+        return Object.values(obj);
+      case 'entries':
+        return Object.entries(obj);
+      case 'hasKey':
+        return _args.length > 0 && String(_args[0]) in obj;
+      default:
+        return undefined;
+    }
   }
 
   // Phase 7: Date methods
@@ -1120,7 +1404,7 @@ export class Evaluator {
 
   // Phase 4: File methods
   private callFileMethod(
-    file: EvaluationContext['file'],
+    file: FileObject,
     method: string,
     args: unknown[]
   ): unknown {
@@ -1128,15 +1412,17 @@ export class Evaluator {
 
     switch (method) {
       case 'hasTag':
-        return args.some((tag) => file.tags.includes(String(tag).replace(/^#/, '')));
+        return args.some((tag) => (file.tags || []).includes(String(tag).replace(/^#/, '')));
       case 'hasLink':
-        return file.links.some((link) => link === String(args[0]));
+        return (file.links || []).some((link) => link === String(args[0]));
       case 'hasProperty':
-        return String(args[0]) in file.properties;
-      case 'inFolder':
-        return file.folder === String(args[0]) || file.folder.startsWith(String(args[0]) + '/');
+        return file.properties ? String(args[0]) in file.properties : false;
+      case 'inFolder': {
+        const folder = file.folder || '';
+        return folder === String(args[0]) || folder.startsWith(String(args[0]) + '/');
+      }
       case 'asLink':
-        return { type: 'link', path: file.path, display: args[0] ? String(args[0]) : file.name };
+        return { type: 'link', path: file.path || '', display: args[0] ? String(args[0]) : file.name };
       default:
         return undefined;
     }
@@ -1171,7 +1457,17 @@ export class Evaluator {
       case 'undefined':
         return value === undefined;
       case 'link':
-        return typeof value === 'object' && value !== null && (value as any).type === 'link';
+        return this.isLink(value);
+      case 'regex':
+        return this.isRegex(value);
+      case 'file':
+        return typeof value === 'object' && value !== null && (value as any).type === 'file';
+      case 'image':
+        return typeof value === 'object' && value !== null && (value as any).type === 'image';
+      case 'icon':
+        return typeof value === 'object' && value !== null && (value as any).type === 'icon';
+      case 'html':
+        return typeof value === 'object' && value !== null && (value as any).type === 'html';
       default:
         return false;
     }

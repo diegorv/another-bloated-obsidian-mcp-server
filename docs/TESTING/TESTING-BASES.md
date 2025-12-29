@@ -334,7 +334,76 @@ The following file properties are available in filters and formulas:
 | `value.isTruthy()` | Check if truthy | `status.isTruthy()` |
 | `value.isType("type")` | Check type | `value.isType("string")` |
 
-Type names: `string`, `number`, `boolean`, `date`, `list`, `array`, `object`, `null`, `undefined`, `link`
+Type names: `string`, `number`, `boolean`, `date`, `list`, `array`, `object`, `null`, `undefined`, `link`, `regex`, `file`, `image`, `icon`, `html`
+
+---
+
+## Link Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `link.asFile()` | Convert link to File object | `myLink.asFile()` |
+| `link.linksTo(file)` | Check if link points to file | `myLink.linksTo("note.md")` |
+
+---
+
+## Object Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `object.isEmpty()` | Check if object is empty | `obj.isEmpty()` |
+| `object.keys()` | Get list of keys | `obj.keys()` |
+| `object.values()` | Get list of values | `obj.values()` |
+| `object.entries()` | Get list of [key, value] pairs | `obj.entries()` |
+| `object.hasKey(key)` | Check if object has key | `obj.hasKey("status")` |
+
+---
+
+## Regular Expressions
+
+Regular expressions can be used in filters and formulas:
+
+```
+/pattern/flags.matches(value)
+```
+
+| Method | Description | Example |
+|--------|-------------|---------|
+| `matches(value)` | Test if value matches pattern | `/hello/.matches("hello world")` |
+| `test(value)` | Alias for matches | `/\\d+/.test("abc123")` |
+| `exec(value)` | Execute and return match array | `/hello/.exec("hello world")` |
+
+**Flags**: `g` (global), `i` (case-insensitive), `m` (multiline), `s` (dotall), `u` (unicode), `y` (sticky)
+
+---
+
+## `this` Object
+
+The `this` keyword provides context about the current file:
+
+```yaml
+# In a base filter, use this to reference the embedding file
+filters:
+  and:
+    - 'file.hasLink(this.file)'  # Find notes that link to the current file
+```
+
+The `this` object changes based on context:
+- When base is opened directly: `this.file` = the .base file
+- When base is embedded: `this.file` = the file containing the embed
+- When base is in sidebar: `this.file` = the currently active file
+
+---
+
+## Advanced Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `file(path)` | Create File object from path | `file("folder/note.md")` |
+| `image(path)` | Create Image object for rendering | `image("path/to/img.png")` |
+| `icon(name)` | Create Icon object (Lucide icons) | `icon("star")` |
+| `html(content)` | Create HTML object for rendering | `html("<b>bold</b>")` |
+| `escapeHTML(str)` | Escape HTML special characters | `escapeHTML("<script>")` |
 
 ---
 
@@ -364,3 +433,100 @@ Detected column types include:
 - `url` - HTTP/HTTPS URLs
 - `multi-select` - Array values
 - `formula` - Calculated fields
+
+---
+
+## Summaries (Aggregations)
+
+Summaries allow you to aggregate column values. Add a `summaries` section to your base config:
+
+```yaml
+summaries:
+  price: Average
+  quantity: Sum
+  due_date: Earliest
+```
+
+### Built-in Summary Types
+
+| Summary | Input Type | Description |
+|---------|------------|-------------|
+| `Average` | Number | Mean of all values |
+| `Min` | Number | Smallest value |
+| `Max` | Number | Largest value |
+| `Sum` | Number | Total of all values |
+| `Range` | Number | Max - Min |
+| `Median` | Number | Middle value |
+| `Stddev` | Number | Standard deviation |
+| `Earliest` | Date | Oldest date |
+| `Latest` | Date | Most recent date |
+| `Checked` | Boolean | Count of true values |
+| `Unchecked` | Boolean | Count of false values |
+| `Count` | Any | Total number of values |
+| `Empty` | Any | Count of empty values |
+| `Filled` | Any | Count of non-empty values |
+| `Unique` | Any | Count of unique values |
+
+### Custom Summaries
+
+You can use expressions for custom aggregations:
+
+```yaml
+summaries:
+  price: 'values.filter(v => v > 0).length'
+```
+
+---
+
+## Views Configuration
+
+Views define how data is displayed. You can have multiple views per base:
+
+```yaml
+views:
+  - type: table
+    name: "Active Tasks"
+    limit: 10
+    filters:
+      and:
+        - 'status != "done"'
+    sort:
+      - property: priority
+        direction: DESC
+      - property: due_date
+        direction: ASC
+    groupBy:
+      property: status
+      direction: ASC
+    summaries:
+      priority: Average
+```
+
+### View Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | View type: `table`, `cards`, `list`, `map` |
+| `name` | string | Display name for the view |
+| `limit` | number | Maximum rows to show |
+| `filters` | object | Additional filters (same syntax as base filters) |
+| `order` | string[] | Column display order |
+| `sort` | array | Sort configuration |
+| `groupBy` | object | Group rows by property |
+| `summaries` | object | View-specific summaries |
+
+### Sort Configuration
+
+```yaml
+sort:
+  - property: column_name
+    direction: ASC   # or DESC
+```
+
+### GroupBy Configuration
+
+```yaml
+groupBy:
+  property: status
+  direction: ASC   # or DESC
+```
