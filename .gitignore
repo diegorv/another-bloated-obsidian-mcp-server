@@ -5,3 +5,7 @@ logs/
 .DS_Store
 .env
 .env.local
+
+# VitePress
+docs/.vitepress/dist/
+docs/.vitepress/cache/
