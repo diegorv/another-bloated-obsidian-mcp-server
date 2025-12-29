@@ -12,24 +12,24 @@ import { formatError, NoteNotFoundError } from '../utils/errors.js';
 // Schema definitions
 export const createNoteBackupSchema = z.object({
   path: z.string().describe('Path to the note to backup'),
-  backupFolder: z.string().optional().default('.backups').describe('Folder to store backups (relative to vault)'),
+  backupFolder: z.string().optional().describe('Folder to store backups (relative to vault)'),
 });
 
 export const listBackupsSchema = z.object({
   notePath: z.string().optional().describe('Filter backups for a specific note'),
-  backupFolder: z.string().optional().default('.backups').describe('Folder where backups are stored'),
+  backupFolder: z.string().optional().describe('Folder where backups are stored'),
 });
 
 export const restoreBackupSchema = z.object({
   backupPath: z.string().describe('Path to the backup file to restore'),
   targetPath: z.string().optional().describe('Target path for restored note (defaults to original location)'),
-  createBackupFirst: z.boolean().optional().default(true).describe('Create a backup of current note before restoring'),
+  createBackupFirst: z.boolean().optional().describe('Create a backup of current note before restoring'),
 });
 
 export const deleteOldBackupsSchema = z.object({
-  keepLast: z.number().optional().default(5).describe('Number of recent backups to keep per note'),
-  backupFolder: z.string().optional().default('.backups').describe('Folder where backups are stored'),
-  dryRun: z.boolean().optional().default(false).describe('If true, only report what would be deleted'),
+  keepLast: z.number().optional().describe('Number of recent backups to keep per note'),
+  backupFolder: z.string().optional().describe('Folder where backups are stored'),
+  dryRun: z.boolean().optional().describe('If true, only report what would be deleted'),
 });
 
 interface BackupInfo {
@@ -82,6 +82,7 @@ export async function handleCreateNoteBackup(args: z.infer<typeof createNoteBack
     const vaultPath = await getActiveVaultPath();
     const notePath = ensureMarkdownExtension(args.path);
     const fullNotePath = validatePath(notePath, vaultPath);
+    const backupFolder = args.backupFolder ?? '.backups';
 
     // Check if note exists
     try {
@@ -91,7 +92,7 @@ export async function handleCreateNoteBackup(args: z.infer<typeof createNoteBack
     }
 
     // Create backup folder if it doesn't exist
-    const backupFolderPath = validatePath(args.backupFolder, vaultPath);
+    const backupFolderPath = validatePath(backupFolder, vaultPath);
     await fs.mkdir(backupFolderPath, { recursive: true });
 
     // Read note content
@@ -140,7 +141,8 @@ ${content}`;
 export async function handleListBackups(args: z.infer<typeof listBackupsSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
-    const backupFolderPath = validatePath(args.backupFolder, vaultPath);
+    const backupFolder = args.backupFolder ?? '.backups';
+    const backupFolderPath = validatePath(backupFolder, vaultPath);
 
     // Check if backup folder exists
     try {
@@ -153,7 +155,7 @@ export async function handleListBackups(args: z.infer<typeof listBackupsSchema>)
             text: JSON.stringify({
               backups: [],
               count: 0,
-              message: `Backup folder "${args.backupFolder}" does not exist`,
+              message: `Backup folder "${backupFolder}" does not exist`,
             }, null, 2),
           },
         ],
@@ -274,7 +276,8 @@ export async function handleRestoreBackup(args: z.infer<typeof restoreBackupSche
 
     // Create backup of current note if it exists
     let backupCreated: string | undefined;
-    if (args.createBackupFirst) {
+    const createBackupFirst = args.createBackupFirst ?? true;
+    if (createBackupFirst) {
       try {
         await fs.access(targetFullPath);
         // Note exists, create backup
@@ -323,7 +326,10 @@ export async function handleRestoreBackup(args: z.infer<typeof restoreBackupSche
 export async function handleDeleteOldBackups(args: z.infer<typeof deleteOldBackupsSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
-    const backupFolderPath = validatePath(args.backupFolder, vaultPath);
+    const backupFolder = args.backupFolder ?? '.backups';
+    const keepLast = args.keepLast ?? 5;
+    const dryRun = args.dryRun ?? false;
+    const backupFolderPath = validatePath(backupFolder, vaultPath);
 
     // Check if backup folder exists
     try {
@@ -337,7 +343,7 @@ export async function handleDeleteOldBackups(args: z.infer<typeof deleteOldBacku
               success: true,
               deleted: [],
               count: 0,
-              message: `Backup folder "${args.backupFolder}" does not exist`,
+              message: `Backup folder "${backupFolder}" does not exist`,
             }),
           },
         ],
@@ -373,13 +379,13 @@ export async function handleDeleteOldBackups(args: z.infer<typeof deleteOldBacku
       backups.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       // Mark older backups for deletion
-      for (let i = args.keepLast; i < backups.length; i++) {
+      for (let i = keepLast; i < backups.length; i++) {
         toDelete.push(backups[i].path);
       }
     }
 
     const deleted: string[] = [];
-    if (!args.dryRun) {
+    if (!dryRun) {
       for (const backupPath of toDelete) {
         try {
           await fs.unlink(backupPath);
@@ -396,10 +402,10 @@ export async function handleDeleteOldBackups(args: z.infer<typeof deleteOldBacku
           type: 'text' as const,
           text: JSON.stringify({
             success: true,
-            deleted: args.dryRun ? [] : deleted,
-            wouldDelete: args.dryRun ? toDelete.map((p) => getRelativePath(p, vaultPath)) : undefined,
-            count: args.dryRun ? toDelete.length : deleted.length,
-            dryRun: args.dryRun,
+            deleted: dryRun ? [] : deleted,
+            wouldDelete: dryRun ? toDelete.map((p) => getRelativePath(p, vaultPath)) : undefined,
+            count: dryRun ? toDelete.length : deleted.length,
+            dryRun: dryRun,
           }, null, 2),
         },
       ],

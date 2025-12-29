@@ -104,9 +104,9 @@ Next day.
       })).not.toThrow();
     });
 
-    it('listDailyNotesSchema should have correct default limit', () => {
+    it('listDailyNotesSchema should accept optional limit (default applied in handler)', () => {
       const parsed = listDailyNotesSchema.parse({});
-      expect(parsed.limit).toBe(30);
+      expect(parsed.limit).toBeUndefined(); // default 30 is applied in handler
     });
 
     it('appendToDailySchema should require content', () => {

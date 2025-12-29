@@ -18,11 +18,11 @@ import { formatError } from '../utils/errors.js';
 // Schema definitions
 export const listNotesSchema = z.object({
   folder: z.string().optional().describe('Filter notes by folder path'),
-  recursive: z.boolean().optional().default(true).describe('Include notes in subfolders'),
-  sortBy: z.enum(['name', 'modified', 'created']).optional().default('modified').describe('Sort notes by: name, modified date, or created date'),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('desc').describe('Sort order: ascending or descending'),
+  recursive: z.boolean().optional().describe('Include notes in subfolders'),
+  sortBy: z.enum(['name', 'modified', 'created']).optional().describe('Sort notes by: name, modified date, or created date'),
+  sortOrder: z.enum(['asc', 'desc']).optional().describe('Sort order: ascending or descending'),
   limit: z.number().optional().describe('Maximum number of notes to return'),
-  offset: z.number().optional().default(0).describe('Number of notes to skip (for pagination)'),
+  offset: z.number().optional().describe('Number of notes to skip (for pagination)'),
   namePattern: z.string().optional().describe('Filter notes by name pattern (regex)'),
 });
 
@@ -42,12 +42,11 @@ export const updateNoteSchema = z.object({
   mode: z
     .enum(['overwrite', 'append', 'prepend', 'replace'])
     .optional()
-    .default('overwrite')
     .describe('How to update: overwrite (replace all), append (add to end), prepend (add to start), replace (find and replace)'),
   search: z.string().optional().describe('Text to search for (required for replace mode)'),
-  replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences (default: false, only first)'),
-  useRegex: z.boolean().optional().default(false).describe('Treat search as a regular expression'),
-  ignoreFrontmatterConflict: z.boolean().optional().default(false).describe('Force prepend even if content contains "---" that may conflict with frontmatter'),
+  replaceAll: z.boolean().optional().describe('Replace all occurrences (default: false, only first)'),
+  useRegex: z.boolean().optional().describe('Treat search as a regular expression'),
+  ignoreFrontmatterConflict: z.boolean().optional().describe('Force prepend even if content contains "---" that may conflict with frontmatter'),
 });
 
 export const deleteNoteSchema = z.object({
@@ -57,26 +56,31 @@ export const deleteNoteSchema = z.object({
 export const renameNoteSchema = z.object({
   oldPath: z.string().describe('Current path of the note (relative to vault root)'),
   newPath: z.string().describe('New path for the note (relative to vault root)'),
-  updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes that reference this note'),
+  updateLinks: z.boolean().optional().describe('Update wikilinks in other notes that reference this note'),
 });
 
 export const moveNoteSchema = z.object({
   path: z.string().describe('Path to the note to move (relative to vault root)'),
   destinationFolder: z.string().describe('Destination folder path (relative to vault root, use empty string for root)'),
-  updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes that reference this note'),
+  updateLinks: z.boolean().optional().describe('Update wikilinks in other notes that reference this note'),
 });
 
 // Tool implementations
 export async function handleListNotes(args: z.infer<typeof listNotesSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
+    const recursive = args.recursive ?? true;
+    const sortBy = args.sortBy ?? 'modified';
+    const sortOrder = args.sortOrder ?? 'desc';
+    const offset = args.offset ?? 0;
+
     const result = await listNotes(vaultPath, {
       folder: args.folder,
-      recursive: args.recursive,
-      sortBy: args.sortBy,
-      sortOrder: args.sortOrder,
+      recursive,
+      sortBy,
+      sortOrder,
       limit: args.limit,
-      offset: args.offset,
+      offset,
       namePattern: args.namePattern,
     });
 
@@ -88,7 +92,7 @@ export async function handleListNotes(args: z.infer<typeof listNotesSchema>) {
             notes: result.notes,
             count: result.notes.length,
             total: result.total,
-            hasMore: args.limit !== undefined && result.total > (args.offset || 0) + result.notes.length,
+            hasMore: args.limit !== undefined && result.total > offset + result.notes.length,
           }, null, 2),
         },
       ],
@@ -165,8 +169,13 @@ export async function handleCreateNote(args: z.infer<typeof createNoteSchema>) {
 
 export async function handleUpdateNote(args: z.infer<typeof updateNoteSchema>) {
   try {
+    const mode = args.mode ?? 'overwrite';
+    const replaceAll = args.replaceAll ?? false;
+    const useRegex = args.useRegex ?? false;
+    const ignoreFrontmatterConflict = args.ignoreFrontmatterConflict ?? false;
+
     // Validate replace mode requires search parameter
-    if (args.mode === 'replace' && !args.search) {
+    if (mode === 'replace' && !args.search) {
       return {
         content: [
           {
@@ -185,27 +194,27 @@ export async function handleUpdateNote(args: z.infer<typeof updateNoteSchema>) {
 
     // Build options object
     const options = {
-      replaceOptions: args.mode === 'replace'
-        ? { search: args.search!, replaceAll: args.replaceAll, useRegex: args.useRegex }
+      replaceOptions: mode === 'replace'
+        ? { search: args.search!, replaceAll, useRegex }
         : undefined,
-      ignoreFrontmatterConflict: args.ignoreFrontmatterConflict,
+      ignoreFrontmatterConflict,
     };
 
     const replacements = await updateNote(
       vaultPath,
       args.path,
       args.content,
-      args.mode,
+      mode,
       options
     );
 
     const result: Record<string, unknown> = {
       success: true,
       path: args.path,
-      mode: args.mode,
+      mode,
     };
 
-    if (args.mode === 'replace') {
+    if (mode === 'replace') {
       result.replacements = replacements;
     }
 
@@ -259,11 +268,12 @@ export async function handleDeleteNote(args: z.infer<typeof deleteNoteSchema>) {
 export async function handleRenameNote(args: z.infer<typeof renameNoteSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
+    const updateLinks = args.updateLinks ?? true;
     const linksUpdated = await renameNote(
       vaultPath,
       args.oldPath,
       args.newPath,
-      args.updateLinks
+      updateLinks
     );
 
     return {
@@ -295,11 +305,12 @@ export async function handleRenameNote(args: z.infer<typeof renameNoteSchema>) {
 export async function handleMoveNote(args: z.infer<typeof moveNoteSchema>) {
   try {
     const vaultPath = await getActiveVaultPath();
+    const updateLinks = args.updateLinks ?? true;
     const result = await moveNote(
       vaultPath,
       args.path,
       args.destinationFolder,
-      args.updateLinks
+      updateLinks
     );
 
     return {

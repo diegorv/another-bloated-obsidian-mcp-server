@@ -111,12 +111,12 @@ category: test
       expect(() => updateFrontmatterSchema.parse({ updates: {} })).toThrow();
     });
 
-    it('updateFrontmatterSchema should have replace default false', () => {
+    it('updateFrontmatterSchema should accept optional replace (default applied in handler)', () => {
       const parsed = updateFrontmatterSchema.parse({
         path: 'test.md',
         updates: {},
       });
-      expect(parsed.replace).toBe(false);
+      expect(parsed.replace).toBeUndefined(); // default false is applied in handler
     });
 
     it('removeFrontmatterFieldSchema should require path and field', () => {
@@ -136,13 +136,13 @@ category: test
       expect(() => addToArrayFieldSchema.parse({ path: 'test.md', field: 'tags' })).toThrow();
     });
 
-    it('addToArrayFieldSchema should have createIfMissing default true', () => {
+    it('addToArrayFieldSchema should accept optional createIfMissing (default applied in handler)', () => {
       const parsed = addToArrayFieldSchema.parse({
         path: 'test.md',
         field: 'tags',
         values: [],
       });
-      expect(parsed.createIfMissing).toBe(true);
+      expect(parsed.createIfMissing).toBeUndefined(); // default true is applied in handler
     });
 
     it('removeFromArrayFieldSchema should require path, field, and values', () => {

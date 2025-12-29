@@ -28,7 +28,7 @@ export const findOrphansSchema = z.object({});
 export const findBrokenLinksSchema = z.object({});
 
 export const getLinkGraphSchema = z.object({
-  maxNodes: z.number().optional().default(500).describe('Maximum number of nodes to include'),
+  maxNodes: z.number().optional().describe('Maximum number of nodes to include'),
 });
 
 // Tool implementations
@@ -178,9 +178,10 @@ export async function handleGetLinkGraph(args: z.infer<typeof getLinkGraphSchema
   try {
     const vaultPath = await getActiveVaultPath();
     const graph = await buildLinkGraph(vaultPath);
+    const maxNodes = args.maxNodes ?? 500;
 
     // Limit nodes if needed
-    const limitedNodes = graph.nodes.slice(0, args.maxNodes);
+    const limitedNodes = graph.nodes.slice(0, maxNodes);
     const limitedNodeSet = new Set(limitedNodes);
     const limitedEdges = graph.edges.filter(
       (e) => limitedNodeSet.has(e.source) && limitedNodeSet.has(e.target)

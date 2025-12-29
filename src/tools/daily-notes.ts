@@ -25,7 +25,7 @@ export const createDailyNoteSchema = z.object({
 export const listDailyNotesSchema = z.object({
   startDate: z.string().optional().describe('Start date in YYYY-MM-DD format'),
   endDate: z.string().optional().describe('End date in YYYY-MM-DD format'),
-  limit: z.number().optional().default(30).describe('Maximum number of notes to return'),
+  limit: z.number().optional().describe('Maximum number of notes to return'),
 });
 
 export const appendToDailySchema = z.object({
@@ -134,7 +134,8 @@ export async function handleListDailyNotes(args: z.infer<typeof listDailyNotesSc
     const endDate = args.endDate ? parseDateArg(args.endDate) : undefined;
 
     const notes = await listDailyNotes(vaultPath, config, startDate, endDate);
-    const limited = notes.slice(0, args.limit);
+    const limit = args.limit ?? 30;
+    const limited = notes.slice(0, limit);
 
     return {
       content: [

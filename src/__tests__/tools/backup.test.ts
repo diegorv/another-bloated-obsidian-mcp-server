@@ -86,9 +86,9 @@ Nested content.
       expect(() => createNoteBackupSchema.parse({})).toThrow();
     });
 
-    it('createNoteBackupSchema should have backupFolder default', () => {
+    it('createNoteBackupSchema should accept optional backupFolder (default applied in handler)', () => {
       const parsed = createNoteBackupSchema.parse({ path: 'note.md' });
-      expect(parsed.backupFolder).toBe('.backups');
+      expect(parsed.backupFolder).toBeUndefined(); // default '.backups' is applied in handler
     });
 
     it('listBackupsSchema should accept optional parameters', () => {
@@ -109,16 +109,16 @@ Nested content.
       expect(() => restoreBackupSchema.parse({})).toThrow();
     });
 
-    it('restoreBackupSchema should have createBackupFirst default true', () => {
+    it('restoreBackupSchema should accept optional createBackupFirst (default applied in handler)', () => {
       const parsed = restoreBackupSchema.parse({ backupPath: '.backups/test.md' });
-      expect(parsed.createBackupFirst).toBe(true);
+      expect(parsed.createBackupFirst).toBeUndefined(); // default true is applied in handler
     });
 
-    it('deleteOldBackupsSchema should have correct defaults', () => {
+    it('deleteOldBackupsSchema should accept optional fields (defaults applied in handler)', () => {
       const parsed = deleteOldBackupsSchema.parse({});
-      expect(parsed.keepLast).toBe(5);
-      expect(parsed.backupFolder).toBe('.backups');
-      expect(parsed.dryRun).toBe(false);
+      expect(parsed.keepLast).toBeUndefined(); // default 5 applied in handler
+      expect(parsed.backupFolder).toBeUndefined(); // default '.backups' applied in handler
+      expect(parsed.dryRun).toBeUndefined(); // default false applied in handler
     });
   });
 

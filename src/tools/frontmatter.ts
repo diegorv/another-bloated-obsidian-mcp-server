@@ -18,7 +18,7 @@ export const getFrontmatterSchema = z.object({
 export const updateFrontmatterSchema = z.object({
   path: z.string().describe('Path to the note (relative to vault root)'),
   updates: z.record(z.unknown()).describe('Key-value pairs to update in frontmatter'),
-  replace: z.boolean().optional().default(false).describe('If true, replace all frontmatter instead of merging'),
+  replace: z.boolean().optional().describe('If true, replace all frontmatter instead of merging'),
 });
 
 export const removeFrontmatterFieldSchema = z.object({
@@ -30,7 +30,7 @@ export const addToArrayFieldSchema = z.object({
   path: z.string().describe('Path to the note (relative to vault root)'),
   field: z.string().describe('Name of the array field (e.g., "tags", "aliases")'),
   values: z.array(z.unknown()).describe('Values to add to the array'),
-  createIfMissing: z.boolean().optional().default(true).describe('Create the field if it does not exist'),
+  createIfMissing: z.boolean().optional().describe('Create the field if it does not exist'),
 });
 
 export const removeFromArrayFieldSchema = z.object({
@@ -92,12 +92,13 @@ export async function handleUpdateFrontmatter(args: z.infer<typeof updateFrontma
   try {
     const vaultPath = await getActiveVaultPath();
     const fullPath = validatePath(ensureMarkdownExtension(args.path), vaultPath);
+    const replace = args.replace ?? false;
 
     const content = await fs.readFile(fullPath, 'utf-8');
     const parsed = matter(content);
 
     let newFrontmatter: Record<string, unknown>;
-    if (args.replace) {
+    if (replace) {
       newFrontmatter = args.updates;
     } else {
       newFrontmatter = { ...parsed.data, ...args.updates };
@@ -204,6 +205,7 @@ export async function handleAddToArrayField(args: z.infer<typeof addToArrayField
   try {
     const vaultPath = await getActiveVaultPath();
     const fullPath = validatePath(ensureMarkdownExtension(args.path), vaultPath);
+    const createIfMissing = args.createIfMissing ?? true;
 
     const content = await fs.readFile(fullPath, 'utf-8');
     const parsed = matter(content);
@@ -228,7 +230,7 @@ export async function handleAddToArrayField(args: z.infer<typeof addToArrayField
 
     // Create array if missing
     if (currentValue === undefined) {
-      if (!args.createIfMissing) {
+      if (!createIfMissing) {
         return {
           content: [
             {

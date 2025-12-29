@@ -94,9 +94,9 @@ No attachments here.
       })).not.toThrow();
     });
 
-    it('listAttachmentsSchema should have type default all', () => {
+    it('listAttachmentsSchema should accept optional type (default applied in handler)', () => {
       const parsed = listAttachmentsSchema.parse({});
-      expect(parsed.type).toBe('all');
+      expect(parsed.type).toBeUndefined(); // default 'all' is applied in handler
     });
 
     it('getAttachmentInfoSchema should require path', () => {

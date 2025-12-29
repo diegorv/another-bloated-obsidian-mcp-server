@@ -119,9 +119,9 @@ Links to [[note-a]].
       expect(() => getLinkGraphSchema.parse({ maxNodes: 100 })).not.toThrow();
     });
 
-    it('getLinkGraphSchema should have correct default', () => {
+    it('getLinkGraphSchema should accept optional maxNodes (default applied in handler)', () => {
       const parsed = getLinkGraphSchema.parse({});
-      expect(parsed.maxNodes).toBe(500);
+      expect(parsed.maxNodes).toBeUndefined(); // default 500 is applied in handler
     });
   });
 

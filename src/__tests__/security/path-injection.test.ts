@@ -206,7 +206,7 @@ MALICIOUS CONTENT TO OVERWRITE`;
       const { setActiveVault } = await import('../../services/vault-manager.js');
 
       clearConfigCache();
-      await setActiveVault('test', VAULT_PATH);
+      await setActiveVault('test');
 
       // Try to restore without specifying targetPath (uses backup_of from metadata)
       const result = await handleRestoreBackup({
@@ -252,7 +252,7 @@ OVERWRITE CONTENT`;
       const { setActiveVault } = await import('../../services/vault-manager.js');
 
       clearConfigCache();
-      await setActiveVault('test', VAULT_PATH);
+      await setActiveVault('test');
 
       const result = await handleRestoreBackup({
         backupPath: '.backups/absolute-path-backup.md',
@@ -298,7 +298,7 @@ ENCODED ATTACK`;
       const { setActiveVault } = await import('../../services/vault-manager.js');
 
       clearConfigCache();
-      await setActiveVault('test', VAULT_PATH);
+      await setActiveVault('test');
 
       const result = await handleRestoreBackup({
         backupPath: '.backups/encoded-backup.md',
@@ -342,7 +342,7 @@ ENCODED ATTACK`;
         })
       );
 
-      const { getOrCreateDailyNote } = await import('../../services/daily-notes.js');
+      const { getOrCreateDailyNote, loadDailyNotesConfig } = await import('../../services/daily-notes.js');
       const { clearConfigCache } = await import('../../config.js');
 
       clearConfigCache();
@@ -352,7 +352,8 @@ ENCODED ATTACK`;
       // 2. Use default template (ignore malicious path)
       // 3. Return error
       try {
-        const result = await getOrCreateDailyNote(VAULT_PATH, new Date());
+        const config = await loadDailyNotesConfig(VAULT_PATH);
+        const result = await getOrCreateDailyNote(VAULT_PATH, config, new Date());
         // If it succeeds, the content should NOT contain /etc/passwd data
         expect(result.content).not.toContain('root:x:');
         expect(result.content).not.toContain('bin/bash');
@@ -384,13 +385,14 @@ ENCODED ATTACK`;
         })
       );
 
-      const { getOrCreateDailyNote } = await import('../../services/daily-notes.js');
+      const { getOrCreateDailyNote, loadDailyNotesConfig } = await import('../../services/daily-notes.js');
       const { clearConfigCache } = await import('../../config.js');
 
       clearConfigCache();
 
       try {
-        const result = await getOrCreateDailyNote(VAULT_PATH, new Date());
+        const config = await loadDailyNotesConfig(VAULT_PATH);
+        const result = await getOrCreateDailyNote(VAULT_PATH, config, new Date());
         // If it succeeds, the path should be within vault
         expect(result.path).not.toContain('..');
         expect(result.path).not.toContain('/tmp');
@@ -491,7 +493,7 @@ ENCODED ATTACK`;
       const { setActiveVault } = await import('../../services/vault-manager.js');
 
       clearConfigCache();
-      await setActiveVault('test', VAULT_PATH);
+      await setActiveVault('test');
 
       // Try to create backup in folder outside vault
       const result = await handleCreateNoteBackup({

@@ -57,7 +57,7 @@ function getAttachmentType(ext: string): string {
 // Schema definitions
 export const listAttachmentsSchema = z.object({
   folder: z.string().optional().describe('Folder to search for attachments'),
-  type: z.enum(['image', 'document', 'audio', 'video', 'other', 'all']).optional().default('all').describe('Filter by attachment type'),
+  type: z.enum(['image', 'document', 'audio', 'video', 'other', 'all']).optional().describe('Filter by attachment type'),
 });
 
 export const getAttachmentInfoSchema = z.object({
@@ -97,7 +97,8 @@ export async function handleListAttachments(args: z.infer<typeof listAttachments
           const type = getAttachmentType(ext);
 
           // Apply type filter
-          if (args.type !== 'all' && type !== args.type) {
+          const filterType = args.type ?? 'all';
+          if (filterType !== 'all' && type !== filterType) {
             continue;
           }
 

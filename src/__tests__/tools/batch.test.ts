@@ -109,12 +109,12 @@ tags:
       expect(() => batchMoveSchema.parse({ destinationFolder: 'archive' })).toThrow();
     });
 
-    it('batchMoveSchema should have updateLinks default true', () => {
+    it('batchMoveSchema should accept optional updateLinks (default applied in handler)', () => {
       const parsed = batchMoveSchema.parse({
         paths: ['note1.md'],
         destinationFolder: 'archive',
       });
-      expect(parsed.updateLinks).toBe(true);
+      expect(parsed.updateLinks).toBeUndefined(); // default true is applied in handler
     });
 
     it('batchDeleteSchema should require paths and confirm', () => {
@@ -133,12 +133,12 @@ tags:
       expect(() => batchUpdateFrontmatterSchema.parse({ paths: ['note1.md'] })).toThrow();
     });
 
-    it('batchUpdateFrontmatterSchema should have replace default false', () => {
+    it('batchUpdateFrontmatterSchema should accept optional replace (default applied in handler)', () => {
       const parsed = batchUpdateFrontmatterSchema.parse({
         paths: ['note1.md'],
         updates: {},
       });
-      expect(parsed.replace).toBe(false);
+      expect(parsed.replace).toBeUndefined(); // default false is applied in handler
     });
 
     it('batchAddTagSchema should require paths and tags', () => {
@@ -164,10 +164,10 @@ tags:
       expect(() => batchReadSchema.parse({})).toThrow();
     });
 
-    it('batchReadSchema should have defaults for include options', () => {
+    it('batchReadSchema should accept optional include options (defaults applied in handler)', () => {
       const parsed = batchReadSchema.parse({ paths: ['note1.md'] });
-      expect(parsed.includeContent).toBe(true);
-      expect(parsed.includeFrontmatter).toBe(true);
+      expect(parsed.includeContent).toBeUndefined(); // default true is applied in handler
+      expect(parsed.includeFrontmatter).toBeUndefined(); // default true is applied in handler
     });
 
     it('batchReadSchema should enforce max 10 paths', () => {

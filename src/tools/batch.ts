@@ -14,7 +14,7 @@ import matter from 'gray-matter';
 export const batchMoveSchema = z.object({
   paths: z.array(z.string()).describe('Array of note paths to move'),
   destinationFolder: z.string().describe('Destination folder path'),
-  updateLinks: z.boolean().optional().default(true).describe('Update wikilinks in other notes'),
+  updateLinks: z.boolean().optional().describe('Update wikilinks in other notes'),
 });
 
 export const batchDeleteSchema = z.object({
@@ -25,7 +25,7 @@ export const batchDeleteSchema = z.object({
 export const batchUpdateFrontmatterSchema = z.object({
   paths: z.array(z.string()).describe('Array of note paths to update'),
   updates: z.record(z.unknown()).describe('Key-value pairs to update in frontmatter'),
-  replace: z.boolean().optional().default(false).describe('Replace all frontmatter instead of merging'),
+  replace: z.boolean().optional().describe('Replace all frontmatter instead of merging'),
 });
 
 export const batchAddTagSchema = z.object({
@@ -40,8 +40,8 @@ export const batchRemoveTagSchema = z.object({
 
 export const batchReadSchema = z.object({
   paths: z.array(z.string()).max(10).describe('Array of note paths to read (max 10)'),
-  includeContent: z.boolean().optional().default(true).describe('Include note content in response'),
-  includeFrontmatter: z.boolean().optional().default(true).describe('Include parsed frontmatter in response'),
+  includeContent: z.boolean().optional().describe('Include note content in response'),
+  includeFrontmatter: z.boolean().optional().describe('Include parsed frontmatter in response'),
 });
 
 // Helper types
@@ -58,6 +58,7 @@ export async function handleBatchMove(args: z.infer<typeof batchMoveSchema>) {
     const vaultPath = await getActiveVaultPath();
     const results: BatchResult[] = [];
     let successCount = 0;
+    const updateLinks = args.updateLinks ?? true;
 
     for (const notePath of args.paths) {
       try {
@@ -65,7 +66,7 @@ export async function handleBatchMove(args: z.infer<typeof batchMoveSchema>) {
           vaultPath,
           notePath,
           args.destinationFolder,
-          args.updateLinks
+          updateLinks
         );
         results.push({
           path: notePath,
@@ -179,6 +180,7 @@ export async function handleBatchUpdateFrontmatter(args: z.infer<typeof batchUpd
     const vaultPath = await getActiveVaultPath();
     const results: BatchResult[] = [];
     let successCount = 0;
+    const replace = args.replace ?? false;
 
     for (const notePath of args.paths) {
       try {
@@ -187,7 +189,7 @@ export async function handleBatchUpdateFrontmatter(args: z.infer<typeof batchUpd
         const parsed = matter(content);
 
         let newFrontmatter: Record<string, unknown>;
-        if (args.replace) {
+        if (replace) {
           newFrontmatter = args.updates;
         } else {
           newFrontmatter = { ...parsed.data, ...args.updates };

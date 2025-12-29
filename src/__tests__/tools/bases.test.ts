@@ -110,9 +110,9 @@ describe('bases tools', () => {
       expect(() => queryBaseSchema.parse({})).toThrow();
     });
 
-    it('queryBaseSchema should have correct default sortOrder', () => {
+    it('queryBaseSchema should accept optional sortOrder (default applied in handler)', () => {
       const parsed = queryBaseSchema.parse({ path: 'tasks.base' });
-      expect(parsed.sortOrder).toBe('asc');
+      expect(parsed.sortOrder).toBeUndefined(); // default 'asc' is applied in handler
     });
   });
 

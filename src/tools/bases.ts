@@ -18,7 +18,7 @@ export const queryBaseSchema = z.object({
   path: z.string().describe('Path to the .base file'),
   filter: z.record(z.unknown()).optional().describe('Filter conditions as key-value pairs'),
   sortColumn: z.string().optional().describe('Column to sort by'),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('asc').describe('Sort order'),
+  sortOrder: z.enum(['asc', 'desc']).optional().describe('Sort order'),
   limit: z.number().optional().describe('Maximum number of rows to return'),
 });
 
