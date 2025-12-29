@@ -1,93 +1,102 @@
 # Obsidian MCP Server
 
-Servidor MCP (Model Context Protocol) para integrar o Obsidian com Claude Code e outros agentes de IA.
+A Model Context Protocol (MCP) server that provides AI assistants with secure access to Obsidian vaults. Enables reading, writing, searching, and managing notes without requiring Obsidian to be running.
 
-## Características
+## Features
 
-- Acesso direto ao filesystem (não precisa do Obsidian aberto)
-- Suporte a múltiplos vaults
-- **Grupos de ferramentas configuráveis** - habilite apenas o que você precisa
-- Operações CRUD em notas
-- Manipulação de frontmatter YAML
-- Gerenciamento de tags
-- Análise de links e grafo de conhecimento
-- Suporte a Daily Notes
-- Sistema de templates
-- Integração com Obsidian Bases
+- **Direct filesystem access** - Works without Obsidian running
+- **Multi-vault support** - Manage multiple vaults simultaneously
+- **Configurable tool groups** - Enable only the features you need
+- **Full CRUD operations** - Create, read, update, delete notes
+- **YAML frontmatter** - Parse and manipulate note metadata
+- **Tag management** - Add, remove, and search by tags
+- **Link analysis** - Backlinks, outlinks, orphans, broken links, link graph
+- **Daily notes** - Create and manage daily journal entries
+- **Templates** - Apply templates with variable substitution
+- **Obsidian Bases** - Query Obsidian's database files
+- **Batch operations** - Process multiple notes efficiently
+- **Attachment tracking** - List and find unused attachments
+- **Backup system** - Create and restore note backups
+- **Security-first** - Path traversal protection, symlink escape prevention
 
-## Pré-requisitos
+## Requirements
 
 - Node.js 18+
-- Yarn (se não tiver, instale com `npm install -g yarn`)
+- npm or yarn
 
-## Instalação
+## Installation
 
 ```bash
-# 1. Instale o yarn globalmente (se ainda não tiver)
-npm install -g yarn
-
-# 2. Navegue até o diretório do projeto
+# Clone the repository
+git clone https://github.com/yourusername/obsidian-mcp-server.git
 cd obsidian-mcp-server
 
-# 3. Instale as dependências
+# Install dependencies
+npm install
+# or
 yarn install
 
-# 4. Build (opcional, pode rodar direto com tsx)
-yarn build
+# Build (optional - can run directly with tsx)
+npm run build
 ```
 
-## Configuração
-
-### Opção 1: Claude Code CLI (Recomendado)
-
-A forma mais fácil de configurar é usando o comando `claude mcp add`:
+## Quick Start
 
 ```bash
-# Adicionar o servidor MCP (execute uma vez)
+# Start the server with a vault
+npm start /path/to/your/vault
+
+# With specific tool groups
+npm start /path/to/your/vault --tools=vault,notes,search
+
+# With a custom vault name
+npm start /path/to/your/vault my-vault
+```
+
+## Configuration
+
+### Option 1: Claude Code CLI (Recommended)
+
+```bash
+# Add the MCP server
 claude mcp add obsidian \
   --transport stdio \
   --scope user \
-  -- yarn --cwd /Users/SEU_USUARIO/Dev/obsidian-mcp-server start /Users/SEU_USUARIO/Obsidian/MeuVault
+  -- npx tsx /path/to/obsidian-mcp-server/src/index.ts /path/to/vault
 
-# Com grupos específicos de ferramentas
+# With specific tool groups
 claude mcp add obsidian \
   --transport stdio \
   --scope user \
-  -- yarn --cwd /Users/SEU_USUARIO/Dev/obsidian-mcp-server start /Users/SEU_USUARIO/Obsidian/MeuVault --tools=vault,notes,search
+  -- npx tsx /path/to/obsidian-mcp-server/src/index.ts /path/to/vault --tools=vault,notes,search
 ```
 
-**Escopos disponíveis:**
-- `user` - Disponível em todos os projetos (salvo em `~/.claude.json`)
-- `local` - Apenas no projeto atual
-- `project` - Compartilhado com o time (salvo em `.mcp.json`)
+**Scope options:**
+- `user` - Available in all projects (saved in `~/.claude.json`)
+- `local` - Current project only
+- `project` - Shared with team (saved in `.mcp.json`)
 
-**Comandos úteis:**
+**Useful commands:**
 ```bash
-# Listar servidores configurados
-claude mcp list
-
-# Ver detalhes de um servidor
-claude mcp get obsidian
-
-# Remover servidor
-claude mcp remove obsidian
+claude mcp list          # List configured servers
+claude mcp get obsidian  # View server details
+claude mcp remove obsidian  # Remove server
 ```
 
-### Opção 2: Arquivo de configuração manual
+### Option 2: Manual Configuration
 
-Crie ou edite o arquivo `~/.claude.json`:
+Edit `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "obsidian": {
       "type": "stdio",
-      "command": "yarn",
+      "command": "npx",
       "args": [
-        "--cwd",
-        "/Users/SEU_USUARIO/Dev/obsidian-mcp-server",
-        "start",
-        "/Users/SEU_USUARIO/Obsidian/MeuVault",
+        "tsx",
+        "/path/to/obsidian-mcp-server/src/index.ts",
+        "/path/to/your/vault",
         "--tools=vault,notes,search"
       ]
     }
@@ -95,28 +104,21 @@ Crie ou edite o arquivo `~/.claude.json`:
 }
 ```
 
-### Opção 3: Claude Desktop App
+### Option 3: Claude Desktop App
 
-Para o aplicativo Claude Desktop (não o CLI), edite:
-
+Edit the config file:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
-  "preferences": {
-    "quickEntryShortcut": "off",
-    "chromeExtensionEnabled": true
-  },
   "mcpServers": {
     "obsidian": {
-      "command": "/Users/diegorv/.asdf/shims/yarn",
+      "command": "npx",
       "args": [
-        "--silent",
-        "--cwd",
-        "/Users/diegorv/Dev/obsidian-mcp-server",
-        "start",
-        "/Users/diegorv/MyFiles/vault-teste",
+        "tsx",
+        "/path/to/obsidian-mcp-server/src/index.ts",
+        "/path/to/your/vault",
         "--tools=vault,notes,search"
       ]
     }
@@ -124,140 +126,161 @@ Para o aplicativo Claude Desktop (não o CLI), edite:
 }
 ```
 
-### Verificar se está funcionando
+## Tool Groups
 
-Após configurar, reinicie o Claude Code/Desktop e use o comando `/mcp` para verificar o status do servidor.
+| Group | Tools | Description |
+|-------|-------|-------------|
+| `vault` | list_vaults, set_active_vault, register_vault | Vault management |
+| `notes` | list_notes, read_note, create_note, update_note, delete_note, rename_note, move_note | Note CRUD operations |
+| `search` | search_vault | Full-text search |
+| `frontmatter` | get_frontmatter, update_frontmatter, remove_frontmatter_field, add_to_array_field, remove_from_array_field | YAML metadata |
+| `tags` | list_tags, add_tag, remove_tag, search_by_tag | Tag management |
+| `links` | get_outlinks, get_backlinks, find_orphans, find_broken_links, get_link_graph | Link analysis |
+| `daily` | get_daily_note, create_daily_note, list_daily_notes, append_to_daily | Daily notes |
+| `templates` | list_templates, get_template, apply_template, create_from_template | Template system |
+| `bases` | list_bases, get_base, query_base | Obsidian Bases |
+| `batch` | batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag, batch_read_notes | Batch operations |
+| `attachments` | list_attachments, get_attachment_info, find_unused_attachments, get_attachments_in_note | Attachment management |
+| `backup` | create_note_backup, list_backups, restore_backup, delete_old_backups | Backup system |
 
-## Grupos de Ferramentas Disponíveis
+**Special values:**
+- `all` - Enable all tool groups (default)
+- `none` - Disable all tools (for testing)
 
-| Grupo | Ferramentas | Descrição |
-|-------|-------------|-----------|
-| `vault` | list_vaults, set_active_vault, register_vault | Gerenciamento de vaults |
-| `notes` | list_notes, read_note, create_note, update_note, delete_note | CRUD de notas |
-| `search` | search_vault | Busca textual no vault |
-| `frontmatter` | get_frontmatter, update_frontmatter | Manipulação de metadados YAML |
-| `tags` | list_tags, add_tag, remove_tag, search_by_tag | Gerenciamento de tags |
-| `links` | get_outlinks, get_backlinks, find_orphans, find_broken_links, get_link_graph | Análise de links |
-| `daily` | get_daily_note, create_daily_note, list_daily_notes, append_to_daily | Daily Notes |
-| `templates` | list_templates, get_template, apply_template, create_from_template | Sistema de templates |
-| `bases` | list_bases, get_base, query_base | Obsidian Bases (databases) |
+## Configuration Examples
 
-### Valores Especiais
-
-- `all` - Habilita todos os grupos (padrão se nada for especificado)
-- `none` - Desabilita todos os grupos (útil para testes)
-
-## Exemplos de Configuração por Caso de Uso
-
-### Apenas leitura (seguro para experimentar)
-
-```json
-"--tools=vault,notes,search"
-```
-
-Ferramentas disponíveis: list_vaults, set_active_vault, register_vault, list_notes, read_note, search_vault
-
-**Nota:** `create_note`, `update_note` e `delete_note` ficam no grupo `notes`. Para ter apenas leitura verdadeira, você precisaria de um grupo separado (feature futura).
-
-### Produtividade diária
-
-```json
-"--tools=vault,notes,search,daily,tags"
-```
-
-Ideal para: captura rápida, daily notes, organização por tags.
-
-### Análise de conhecimento
-
-```json
-"--tools=vault,notes,search,links,tags"
-```
-
-Ideal para: explorar conexões, encontrar notas órfãs, analisar grafo.
-
-### Criação de conteúdo
-
-```json
-"--tools=vault,notes,search,templates,frontmatter"
-```
-
-Ideal para: criar notas a partir de templates, gerenciar metadados.
-
-## Linha de Comando
-
+### Read-Only Access
 ```bash
-# Ver ajuda completa
-yarn start --help
-
-# Iniciar com vault específico
-yarn start /caminho/para/vault nome-do-vault
-
-# Iniciar com grupos específicos
-yarn start /caminho/para/vault --tools=vault,notes,search
-
-# Usar variável de ambiente
-OBSIDIAN_MCP_TOOLS=vault,notes yarn start /caminho/para/vault
+--tools=vault,notes,search
 ```
+Safe for exploration without modifying notes.
 
-## Configuração Multi-Vault
+### Daily Productivity
+```bash
+--tools=vault,notes,search,daily,tags
+```
+Quick capture, daily notes, and tag organization.
 
-Crie o arquivo `~/.obsidian-mcp/config.json`:
+### Knowledge Analysis
+```bash
+--tools=vault,notes,search,links,tags
+```
+Explore connections, find orphans, analyze the knowledge graph.
+
+### Content Creation
+```bash
+--tools=vault,notes,search,templates,frontmatter
+```
+Create notes from templates, manage metadata.
+
+### Full Access
+```bash
+--tools=all
+```
+All features enabled.
+
+## Multi-Vault Setup
+
+Create `~/.obsidian-mcp/config.json`:
 
 ```json
 {
   "vaults": {
-    "personal": "/Users/SEU_USUARIO/Obsidian/Personal",
-    "work": "/Users/SEU_USUARIO/Obsidian/Work",
-    "research": "/Users/SEU_USUARIO/Obsidian/Research"
+    "personal": "/Users/you/Obsidian/Personal",
+    "work": "/Users/you/Obsidian/Work",
+    "research": "/Users/you/Obsidian/Research"
   },
   "defaultVault": "personal"
 }
 ```
 
+Switch between vaults using `set_active_vault` tool.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OBSIDIAN_MCP_TOOLS` | Comma-separated list of tool groups |
+| `LOG_LEVEL` | Logging level: debug, info, warn, error |
+
+## CLI Reference
+
+```bash
+# Show help
+npm start -- --help
+
+# Start with vault
+npm start /path/to/vault [vault-name] [--tools=groups]
+
+# Examples
+npm start /path/to/vault                    # All tools
+npm start /path/to/vault my-vault           # With custom name
+npm start /path/to/vault --tools=vault,notes  # Specific groups
+```
+
 ## Troubleshooting
 
-### O MCP não aparece ou não conecta
+### Server doesn't connect
 
-1. Verifique se o caminho do projeto está correto (use caminho absoluto)
-2. Verifique se o yarn está instalado globalmente: `yarn --version`
-3. Teste manualmente: `yarn --cwd /caminho/do/projeto start --help`
-4. Para Claude Code CLI: use `/mcp` para ver status e erros
-5. Para Claude Desktop: verifique logs em `~/Library/Logs/Claude/mcp*.log`
+1. Verify the vault path exists and is absolute
+2. Check Node.js version: `node --version` (requires 18+)
+3. Test manually: `npm start /path/to/vault`
+4. For Claude Code: use `/mcp` to check status and errors
+5. For Claude Desktop: check logs in `~/Library/Logs/Claude/mcp*.log`
 
-### Verificar configuração no Claude Code CLI
+### "Tool X is not enabled" error
 
-```bash
-# Ver todos os servidores
-claude mcp list
+The tool you're trying to use is not in your enabled groups. Check your `--tools` configuration and add the required group.
 
-# Ver detalhes do servidor obsidian
-claude mcp get obsidian
-```
+### Permission errors
 
-### Erro "Tool X is not enabled"
+Ensure the user running the MCP server has read/write access to the vault directory.
 
-O tool que você está tentando usar não está habilitado. Verifique sua configuração `--tools` e adicione o grupo necessário.
+### Path not found
 
-### Erro de permissão no vault
+- Use absolute paths, not relative
+- Ensure the vault contains a `.obsidian` folder
+- Check for typos in the path
 
-Verifique se o usuário que executa o Claude Code Desktop tem permissão de leitura/escrita no diretório do vault.
-
-## Desenvolvimento
+## Development
 
 ```bash
-# Rodar em modo desenvolvimento
-yarn dev
+# Development mode (auto-reload)
+npm run dev
 
 # Build
-yarn build
+npm run build
 
 # Type check
-yarn tsc --noEmit
+npx tsc --noEmit
 
-# Testes
-yarn test
+# Run tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
-## Licença
+## Documentation
+
+- [API Reference](docs/API_REFERENCE.md) - Complete tool documentation
+- [Architecture](docs/ARCHITECTURE.md) - System design
+- [Configuration](docs/CONFIGURATION.md) - All configuration options
+- [Security](docs/SECURITY.md) - Security model
+- [Error Codes](docs/ERROR_CODES.md) - Error reference
+- [Contributing](CONTRIBUTING.md) - Development guide
+
+## Security
+
+This server implements multiple security measures:
+
+- **Path validation** - Prevents path traversal attacks
+- **Symlink protection** - Blocks symlink escape attempts
+- **Input validation** - All inputs validated with Zod schemas
+- **Reserved name blocking** - Prevents system file conflicts
+
+See [SECURITY.md](docs/SECURITY.md) for details.
+
+## License
 
 MIT
