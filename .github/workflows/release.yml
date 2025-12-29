@@ -37,12 +37,5 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: googleapis/release-please-action@v4
-        id: release
         with:
           release-type: node
-
-      - name: Enable auto-merge for release PR
-        if: steps.release.outputs.pr
-        run: gh pr merge --auto --squash "${{ fromJSON(steps.release.outputs.pr).number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
