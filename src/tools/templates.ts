@@ -23,14 +23,14 @@ export const getTemplateSchema = z.object({
 export const applyTemplateSchema = z.object({
   name: z.string().describe('Name of the template to apply'),
   title: z.string().optional().describe('Title to use in the template'),
-  variables: z.record(z.string()).optional().describe('Custom variables to replace in the template'),
+  variables: z.record(z.string(), z.string()).optional().describe('Custom variables to replace in the template'),
 });
 
 export const createFromTemplateSchema = z.object({
   template: z.string().describe('Name of the template to use'),
   path: z.string().describe('Path for the new note'),
   title: z.string().optional().describe('Title to use in the template'),
-  variables: z.record(z.string()).optional().describe('Custom variables to replace in the template'),
+  variables: z.record(z.string(), z.string()).optional().describe('Custom variables to replace in the template'),
 });
 
 // Tool implementations

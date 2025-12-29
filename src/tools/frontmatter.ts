@@ -17,7 +17,7 @@ export const getFrontmatterSchema = z.object({
 
 export const updateFrontmatterSchema = z.object({
   path: z.string().describe('Path to the note (relative to vault root)'),
-  updates: z.record(z.unknown()).describe('Key-value pairs to update in frontmatter'),
+  updates: z.record(z.string(), z.unknown()).describe('Key-value pairs to update in frontmatter'),
   replace: z.boolean().optional().describe('If true, replace all frontmatter instead of merging'),
 });
 

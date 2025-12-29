@@ -14,7 +14,7 @@ import type { Config } from './types/index.js';
  * Ensures config structure is valid and prevents injection attacks
  */
 const configSchema = z.object({
-  vaults: z.record(z.string()),
+  vaults: z.record(z.string(), z.string()),
   defaultVault: z.string(),
   options: z.object({
     dailyNotesFormat: z.string(),

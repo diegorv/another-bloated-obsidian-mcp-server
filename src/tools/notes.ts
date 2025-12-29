@@ -33,7 +33,7 @@ export const readNoteSchema = z.object({
 export const createNoteSchema = z.object({
   path: z.string().describe('Path for the new note (relative to vault root)'),
   content: z.string().describe('Content of the note'),
-  frontmatter: z.record(z.unknown()).optional().describe('YAML frontmatter as key-value pairs'),
+  frontmatter: z.record(z.string(), z.unknown()).optional().describe('YAML frontmatter as key-value pairs'),
 });
 
 export const updateNoteSchema = z.object({

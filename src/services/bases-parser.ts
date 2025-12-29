@@ -23,7 +23,7 @@ const baseColumnSchema = z.object({
 // Schema for rows that already have id and values structure
 const structuredRowSchema = z.object({
   id: z.union([z.string(), z.number()]),
-  values: z.record(z.unknown()),
+  values: z.record(z.string(), z.unknown()),
 }).passthrough();
 
 // Schema for standard format with columns and rows (with id/values structure)
@@ -35,7 +35,7 @@ const standardBaseWithStructuredRowsSchema = z.object({
 // Schema for standard format with columns and simple rows (values only)
 const standardBaseWithSimpleRowsSchema = z.object({
   columns: z.array(baseColumnSchema),
-  rows: z.array(z.record(z.unknown())),
+  rows: z.array(z.record(z.string(), z.unknown())),
 }).passthrough();
 
 // Schema for schema + data format
@@ -43,7 +43,7 @@ const schemaDataBaseSchema = z.object({
   schema: z.object({
     columns: z.array(baseColumnSchema).optional(),
   }).passthrough(),
-  data: z.array(z.record(z.unknown())).optional(),
+  data: z.array(z.record(z.string(), z.unknown())).optional(),
 }).passthrough();
 
 /**

@@ -24,7 +24,7 @@ export const batchDeleteSchema = z.object({
 
 export const batchUpdateFrontmatterSchema = z.object({
   paths: z.array(z.string()).describe('Array of note paths to update'),
-  updates: z.record(z.unknown()).describe('Key-value pairs to update in frontmatter'),
+  updates: z.record(z.string(), z.unknown()).describe('Key-value pairs to update in frontmatter'),
   replace: z.boolean().optional().describe('Replace all frontmatter instead of merging'),
 });
 
