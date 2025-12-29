@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.1.1...v1.2.0) (2025-12-29)
+
+
+### Features
+
+* **bases:** rewrite parser to support Obsidian's YAML-based .base format ([a834fed](https://github.com/diegorv/another-bloated-obsidian-mcp-server/commit/a834fedc23f792210e86bc9e959fa36cf74e1633))
+
 ## [1.1.1](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.1.0...v1.1.1) (2025-12-29)
 
 
