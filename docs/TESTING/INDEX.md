@@ -35,7 +35,7 @@ The tests are designed to run without stopping on errors. At the end, the AI wil
 | [Links](/TESTING/TESTING-LINKS) | Link analysis and management | `list_links`, `get_outgoing_links`, `get_incoming_links`, `get_orphan_notes` |
 | [Daily Notes](/TESTING/TESTING-DAILY-NOTES) | Daily notes functionality | `create_daily_note`, `get_daily_note`, `list_daily_notes` |
 | [Templates](/TESTING/TESTING-TEMPLATES) | Template system | `list_templates`, `apply_template` |
-| [Bases](/TESTING/TESTING-BASES) | Database-like queries | `query_notes` |
+| [Bases](/TESTING/TESTING-BASES) | Dynamic note views | `list_bases`, `get_base`, `query_base` |
 | [Batch](/TESTING/TESTING-BATCH) | Batch operations | `batch_create_notes`, `batch_update_notes`, `batch_delete_notes` |
 | [Attachments](/TESTING/TESTING-ATTACHMENTS) | File attachments | `list_attachments`, `get_attachment`, `attach_file` |
 | [Backup](/TESTING/TESTING-BACKUP) | Backup and restore | `backup_vault`, `restore_backup` |

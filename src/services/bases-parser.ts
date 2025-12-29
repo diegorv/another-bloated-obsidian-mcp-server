@@ -1,93 +1,26 @@
 /**
  * Obsidian Bases (database) parser
  *
- * Note: Obsidian Bases is a relatively new feature.
- * This implementation supports the basic .base file format.
+ * Obsidian Bases is a feature that creates dynamic views of notes based on filters.
+ * The .base file is a YAML configuration that defines:
+ * - filters: rules to select which notes to include
+ * - properties: how to display note properties
+ * - formulas: calculated fields
+ * - views: table/card layouts
+ *
+ * The actual data comes from notes in the vault that match the filters.
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { z } from 'zod';
+import matter from 'gray-matter';
 import { validatePath, getRelativePath, shouldIgnorePath } from '../utils/path.js';
-
-/**
- * Zod schemas for validating .base file JSON structures
- * These prevent prototype pollution and ensure data integrity
- */
-const baseColumnSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-  options: z.unknown().optional(),
-}).passthrough();
-
-// Schema for rows that already have id and values structure
-const structuredRowSchema = z.object({
-  id: z.union([z.string(), z.number()]),
-  values: z.record(z.string(), z.unknown()),
-}).passthrough();
-
-// Schema for standard format with columns and rows (with id/values structure)
-const standardBaseWithStructuredRowsSchema = z.object({
-  columns: z.array(baseColumnSchema),
-  rows: z.array(structuredRowSchema),
-}).passthrough();
-
-// Schema for standard format with columns and simple rows (values only)
-const standardBaseWithSimpleRowsSchema = z.object({
-  columns: z.array(baseColumnSchema),
-  rows: z.array(z.record(z.string(), z.unknown())),
-}).passthrough();
-
-// Schema for schema + data format
-const schemaDataBaseSchema = z.object({
-  schema: z.object({
-    columns: z.array(baseColumnSchema).optional(),
-  }).passthrough(),
-  data: z.array(z.record(z.string(), z.unknown())).optional(),
-}).passthrough();
-
-/**
- * Safely parses JSON and validates it's a plain object or array
- * Prevents prototype pollution attacks
- */
-function safeJsonParse(content: string): unknown {
-  const parsed = JSON.parse(content);
-
-  // Reject if null or primitive
-  if (parsed === null || typeof parsed !== 'object') {
-    return parsed;
-  }
-
-  // Check for prototype pollution attempts
-  const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
-
-  function checkForDangerousKeys(obj: unknown, depth = 0): void {
-    // Prevent deep recursion attacks
-    if (depth > 10) return;
-
-    if (obj === null || typeof obj !== 'object') return;
-
-    if (Array.isArray(obj)) {
-      for (const item of obj) {
-        checkForDangerousKeys(item, depth + 1);
-      }
-    } else {
-      for (const key of Object.keys(obj)) {
-        if (dangerousKeys.includes(key)) {
-          throw new Error(`Potentially malicious key "${key}" detected in .base file`);
-        }
-        checkForDangerousKeys((obj as Record<string, unknown>)[key], depth + 1);
-      }
-    }
-  }
-
-  checkForDangerousKeys(parsed);
-  return parsed;
-}
+import { parseMarkdown } from './markdown-parser.js';
 
 export interface BaseColumn {
   name: string;
   type: string;
+  displayName?: string;
   options?: unknown;
 }
 
@@ -96,11 +29,27 @@ export interface BaseRow {
   values: Record<string, unknown>;
 }
 
+export interface BaseConfig {
+  filters?: {
+    and?: string[];
+    or?: string[];
+  };
+  formulas?: Record<string, string>;
+  properties?: Record<string, { displayName?: string }>;
+  views?: Array<{
+    type: string;
+    name: string;
+    order?: string[];
+    sort?: Array<{ property: string; direction: string }>;
+  }>;
+}
+
 export interface BaseData {
   name: string;
   path: string;
   columns: BaseColumn[];
   rows: BaseRow[];
+  config?: BaseConfig;
 }
 
 /**
@@ -134,8 +83,360 @@ export async function listBases(vaultPath: string): Promise<{ name: string; path
 }
 
 /**
- * Parses a .base file
- * Note: The actual format may vary. This is a best-effort implementation.
+ * Parses the YAML content of a .base file
+ */
+function parseBaseConfig(content: string): BaseConfig {
+  // Use gray-matter to parse YAML (it handles YAML without frontmatter delimiters too)
+  // For pure YAML files, we wrap it in frontmatter delimiters
+  const yamlContent = content.trim().startsWith('---') ? content : `---\n${content}\n---`;
+  const parsed = matter(yamlContent);
+  return parsed.data as BaseConfig;
+}
+
+/**
+ * Evaluates a filter condition against a note
+ */
+function evaluateFilter(
+  filter: string,
+  note: {
+    fileName: string;
+    filePath: string;
+    frontmatter: Record<string, unknown>;
+    tags: string[];
+    content: string;
+  }
+): boolean {
+  // Handle negation
+  if (filter.startsWith('!')) {
+    return !evaluateFilter(filter.slice(1), note);
+  }
+
+  // Parse common filter patterns
+
+  // file.name.contains("text")
+  const fileNameContainsMatch = filter.match(/file\.name\.contains\(["']([^"']+)["']\)/);
+  if (fileNameContainsMatch) {
+    return note.fileName.includes(fileNameContainsMatch[1]);
+  }
+
+  // file.name = "text" or file.name == "text"
+  const fileNameEqualsMatch = filter.match(/file\.name\s*={1,2}\s*["']([^"']+)["']/);
+  if (fileNameEqualsMatch) {
+    return note.fileName === fileNameEqualsMatch[1];
+  }
+
+  // note.tags.contains("tag") - check if note has the tag
+  const tagsContainsMatch = filter.match(/note\.tags\.contains\(["']([^"']+)["']\)/);
+  if (tagsContainsMatch) {
+    const tag = tagsContainsMatch[1].replace(/^#/, ''); // Remove # if present
+    return note.tags.includes(tag);
+  }
+
+  // note.property = value or note.property == value
+  const propertyEqualsMatch = filter.match(/note\.(\w+)\s*={1,2}\s*["']([^"']+)["']/);
+  if (propertyEqualsMatch) {
+    const propName = propertyEqualsMatch[1];
+    const propValue = propertyEqualsMatch[2];
+    return note.frontmatter[propName] === propValue;
+  }
+
+  // note.property.contains("value")
+  const propertyContainsMatch = filter.match(/note\.(\w+)\.contains\(["']([^"']+)["']\)/);
+  if (propertyContainsMatch) {
+    const propName = propertyContainsMatch[1];
+    const propValue = propertyContainsMatch[2];
+    const fmValue = note.frontmatter[propName];
+    if (typeof fmValue === 'string') {
+      return fmValue.includes(propValue);
+    }
+    if (Array.isArray(fmValue)) {
+      return fmValue.some((v) => String(v).includes(propValue));
+    }
+    return false;
+  }
+
+  // file.folder = "path" - check if note is in specific folder
+  const folderEqualsMatch = filter.match(/file\.folder\s*={1,2}\s*["']([^"']+)["']/);
+  if (folderEqualsMatch) {
+    const folder = folderEqualsMatch[1];
+    const noteFolder = path.dirname(note.filePath);
+    return noteFolder === folder || noteFolder.startsWith(folder + '/');
+  }
+
+  // file.folder.contains("path")
+  const folderContainsMatch = filter.match(/file\.folder\.contains\(["']([^"']+)["']\)/);
+  if (folderContainsMatch) {
+    const folder = folderContainsMatch[1];
+    return path.dirname(note.filePath).includes(folder);
+  }
+
+  // If we can't parse the filter, return true (include the note)
+  // This is safer than excluding notes we don't understand
+  return true;
+}
+
+/**
+ * Evaluates all filters against a note
+ */
+function evaluateFilters(
+  config: BaseConfig,
+  note: {
+    fileName: string;
+    filePath: string;
+    frontmatter: Record<string, unknown>;
+    tags: string[];
+    content: string;
+  }
+): boolean {
+  if (!config.filters) {
+    // No filters means include all notes (probably not intended, but safe)
+    return false;
+  }
+
+  // Handle AND conditions
+  if (config.filters.and && config.filters.and.length > 0) {
+    return config.filters.and.every((filter) => evaluateFilter(filter, note));
+  }
+
+  // Handle OR conditions
+  if (config.filters.or && config.filters.or.length > 0) {
+    return config.filters.or.some((filter) => evaluateFilter(filter, note));
+  }
+
+  return false;
+}
+
+/**
+ * Scans all markdown notes in the vault
+ */
+async function scanNotes(
+  vaultPath: string
+): Promise<
+  Array<{
+    fileName: string;
+    filePath: string;
+    fullPath: string;
+    frontmatter: Record<string, unknown>;
+    tags: string[];
+    content: string;
+  }>
+> {
+  const notes: Array<{
+    fileName: string;
+    filePath: string;
+    fullPath: string;
+    frontmatter: Record<string, unknown>;
+    tags: string[];
+    content: string;
+  }> = [];
+
+  async function scanDir(dirPath: string): Promise<void> {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      const relativePath = getRelativePath(fullPath, vaultPath);
+
+      if (shouldIgnorePath(relativePath)) continue;
+
+      if (entry.isDirectory()) {
+        await scanDir(fullPath);
+      } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.markdown'))) {
+        try {
+          const content = await fs.readFile(fullPath, 'utf-8');
+          const parsed = parseMarkdown(content);
+          notes.push({
+            fileName: entry.name.replace(/\.(md|markdown)$/, ''),
+            filePath: relativePath,
+            fullPath,
+            frontmatter: parsed.frontmatter,
+            tags: parsed.tags,
+            content: parsed.content,
+          });
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    }
+  }
+
+  await scanDir(vaultPath);
+  return notes;
+}
+
+/**
+ * Infers the type of a value
+ */
+function inferType(value: unknown): string {
+  if (value === null || value === undefined) return 'text';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'checkbox';
+  if (Array.isArray(value)) return 'multi-select';
+  if (value instanceof Date) return 'date';
+  if (typeof value === 'string') {
+    // Check for date-like strings
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return 'date';
+    // Check for URL
+    if (/^https?:\/\//.test(value)) return 'url';
+  }
+  return 'text';
+}
+
+/**
+ * Builds columns from the config and matching notes
+ */
+function buildColumns(
+  config: BaseConfig,
+  notes: Array<{ frontmatter: Record<string, unknown>; fileName: string; tags: string[] }>
+): BaseColumn[] {
+  const columns: BaseColumn[] = [];
+  const seenColumns = new Set<string>();
+
+  // Add file.name column (always present)
+  columns.push({
+    name: 'file.name',
+    type: 'text',
+    displayName: config.properties?.['file.name']?.displayName || 'Name',
+  });
+  seenColumns.add('file.name');
+
+  // Add columns from config properties
+  if (config.properties) {
+    for (const [propKey, propConfig] of Object.entries(config.properties)) {
+      if (seenColumns.has(propKey)) continue;
+      seenColumns.add(propKey);
+
+      // Determine the actual property name (remove 'note.' prefix)
+      const actualPropName = propKey.replace(/^note\./, '');
+
+      // Find a sample value to infer type
+      let sampleValue: unknown = undefined;
+      for (const note of notes) {
+        if (actualPropName === 'tags') {
+          sampleValue = note.tags;
+          break;
+        } else if (note.frontmatter[actualPropName] !== undefined) {
+          sampleValue = note.frontmatter[actualPropName];
+          break;
+        }
+      }
+
+      columns.push({
+        name: propKey,
+        type: inferType(sampleValue),
+        displayName: propConfig.displayName || actualPropName,
+      });
+    }
+  }
+
+  // Add formula columns
+  if (config.formulas) {
+    for (const [formulaName, _formula] of Object.entries(config.formulas)) {
+      if (seenColumns.has(`formula.${formulaName}`)) continue;
+      seenColumns.add(`formula.${formulaName}`);
+
+      columns.push({
+        name: `formula.${formulaName}`,
+        type: 'formula',
+        displayName: formulaName,
+      });
+    }
+  }
+
+  // Add columns from note frontmatter that aren't already added
+  for (const note of notes) {
+    for (const [key, value] of Object.entries(note.frontmatter)) {
+      const propKey = `note.${key}`;
+      if (seenColumns.has(propKey) || seenColumns.has(key)) continue;
+      seenColumns.add(propKey);
+
+      columns.push({
+        name: propKey,
+        type: inferType(value),
+        displayName: key,
+      });
+    }
+  }
+
+  return columns;
+}
+
+/**
+ * Evaluates a simple formula
+ * Currently supports basic age calculation: (now() - property).years.floor()
+ */
+function evaluateFormula(
+  formula: string,
+  note: { frontmatter: Record<string, unknown> }
+): unknown {
+  // Match age-like formulas: (now() - property).years.floor()
+  const ageMatch = formula.match(/\(now\(\)\s*-\s*(\w+)\)\.years(?:\.floor\(\))?/);
+  if (ageMatch) {
+    const propName = ageMatch[1];
+    const dateValue = note.frontmatter[propName];
+    if (dateValue) {
+      const date = new Date(String(dateValue));
+      if (!isNaN(date.getTime())) {
+        const now = new Date();
+        let years = now.getFullYear() - date.getFullYear();
+        const monthDiff = now.getMonth() - date.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) {
+          years--;
+        }
+        return years;
+      }
+    }
+    return null;
+  }
+
+  // Return null for unsupported formulas
+  return null;
+}
+
+/**
+ * Builds rows from matching notes
+ */
+function buildRows(
+  config: BaseConfig,
+  notes: Array<{
+    fileName: string;
+    filePath: string;
+    frontmatter: Record<string, unknown>;
+    tags: string[];
+  }>
+): BaseRow[] {
+  return notes.map((note, index) => {
+    const values: Record<string, unknown> = {
+      'file.name': note.fileName,
+      'file.path': note.filePath,
+    };
+
+    // Add frontmatter values
+    for (const [key, value] of Object.entries(note.frontmatter)) {
+      values[`note.${key}`] = value;
+      values[key] = value; // Also add without prefix for convenience
+    }
+
+    // Add tags
+    values['note.tags'] = note.tags;
+    values['tags'] = note.tags;
+
+    // Evaluate formulas
+    if (config.formulas) {
+      for (const [formulaName, formula] of Object.entries(config.formulas)) {
+        values[`formula.${formulaName}`] = evaluateFormula(formula, note);
+      }
+    }
+
+    return {
+      id: String(index),
+      values,
+    };
+  });
+}
+
+/**
+ * Parses a .base file and returns the data by querying matching notes
  */
 export async function parseBase(vaultPath: string, basePath: string): Promise<BaseData> {
   let fullPath = basePath;
@@ -148,179 +449,25 @@ export async function parseBase(vaultPath: string, basePath: string): Promise<Ba
   const relativePath = getRelativePath(fullPath, vaultPath);
   const name = path.basename(fullPath, '.base');
 
-  try {
-    // Try to parse as JSON (common format for database files)
-    // Use safeJsonParse to prevent prototype pollution attacks
-    const data = safeJsonParse(content);
+  // Parse the YAML config
+  const config = parseBaseConfig(content);
 
-    // Handle different possible formats
-    if (Array.isArray(data)) {
-      // Array of rows format - validate each row is a record
-      const validatedRows = data.filter(
-        (row): row is Record<string, unknown> =>
-          row !== null && typeof row === 'object' && !Array.isArray(row)
-      );
-      const columns = inferColumnsFromRows(validatedRows);
-      const rows = validatedRows.map((row, index) => ({
-        id: String(index),
-        values: row,
-      }));
-      return { name, path: relativePath, columns, rows };
-    }
+  // Scan all notes in the vault
+  const allNotes = await scanNotes(vaultPath);
 
-    // Ensure data is an object for the remaining checks
-    if (data === null || typeof data !== 'object') {
-      return parseStructuredText(content, name, relativePath);
-    }
+  // Filter notes based on the base config
+  const matchingNotes = allNotes.filter((note) => evaluateFilters(config, note));
 
-    const dataObj = data as Record<string, unknown>;
+  // Build columns and rows
+  const columns = buildColumns(config, matchingNotes);
+  const rows = buildRows(config, matchingNotes);
 
-    // Try to validate as standard format with structured rows (id + values)
-    const structuredResult = standardBaseWithStructuredRowsSchema.safeParse(dataObj);
-    if (structuredResult.success) {
-      return {
-        name,
-        path: relativePath,
-        columns: structuredResult.data.columns,
-        rows: structuredResult.data.rows.map((row) => ({
-          id: String(row.id),
-          values: row.values,
-        })),
-      };
-    }
-
-    // Try to validate as standard format with simple rows (values only)
-    const simpleResult = standardBaseWithSimpleRowsSchema.safeParse(dataObj);
-    if (simpleResult.success) {
-      return {
-        name,
-        path: relativePath,
-        columns: simpleResult.data.columns,
-        rows: simpleResult.data.rows.map((row: Record<string, unknown>, index: number) => ({
-          id: String(index),
-          values: row,
-        })),
-      };
-    }
-
-    // Try to validate as schema + data format
-    const schemaDataResult = schemaDataBaseSchema.safeParse(dataObj);
-    if (schemaDataResult.success) {
-      const { schema, data: rowsData } = schemaDataResult.data;
-      return {
-        name,
-        path: relativePath,
-        columns: schema.columns || [],
-        rows: (rowsData || []).map((row: Record<string, unknown>, index: number) => ({
-          id: String((row as Record<string, unknown>).id || index),
-          values: row,
-        })),
-      };
-    }
-
-    // Fallback: treat entire object as a single record
-    return {
-      name,
-      path: relativePath,
-      columns: inferColumnsFromRows([dataObj]),
-      rows: [{ id: '0', values: dataObj }],
-    };
-  } catch (error) {
-    // Re-throw security-related errors (prototype pollution, etc.)
-    if (error instanceof Error && error.message.includes('malicious')) {
-      throw error;
-    }
-    // If not JSON, try to parse as structured text
-    return parseStructuredText(content, name, relativePath);
-  }
-}
-
-/**
- * Infers column definitions from row data
- */
-function inferColumnsFromRows(rows: Record<string, unknown>[]): BaseColumn[] {
-  const columnMap = new Map<string, string>();
-
-  for (const row of rows) {
-    for (const [key, value] of Object.entries(row)) {
-      if (!columnMap.has(key)) {
-        columnMap.set(key, inferType(value));
-      }
-    }
-  }
-
-  return Array.from(columnMap.entries()).map(([name, type]) => ({
-    name,
-    type,
-  }));
-}
-
-/**
- * Infers the type of a value
- */
-function inferType(value: unknown): string {
-  if (value === null || value === undefined) return 'text';
-  if (typeof value === 'number') return 'number';
-  if (typeof value === 'boolean') return 'checkbox';
-  if (Array.isArray(value)) return 'multi-select';
-  if (typeof value === 'string') {
-    // Check for date-like strings
-    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return 'date';
-    // Check for URL
-    if (/^https?:\/\//.test(value)) return 'url';
-  }
-  return 'text';
-}
-
-/**
- * Attempts to parse structured text (like markdown tables)
- */
-function parseStructuredText(content: string, name: string, relativePath: string): BaseData {
-  const lines = content.trim().split('\n');
-
-  // Try to parse as markdown table
-  if (lines.length >= 2 && lines[0].includes('|')) {
-    const headerLine = lines[0];
-    const headers = headerLine
-      .split('|')
-      .map((h) => h.trim())
-      .filter((h) => h);
-
-    const columns = headers.map((h) => ({ name: h, type: 'text' }));
-    const rows: BaseRow[] = [];
-
-    // Skip separator line (second line usually)
-    const startLine = lines[1].includes('---') ? 2 : 1;
-
-    for (let i = startLine; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line.includes('|')) continue;
-
-      const values = line
-        .split('|')
-        .map((v) => v.trim())
-        .filter((v, index, arr) => index > 0 && index < arr.length - 1 || arr.length === headers.length);
-
-      const rowValues: Record<string, unknown> = {};
-      headers.forEach((header, index) => {
-        rowValues[header] = values[index] || '';
-      });
-
-      rows.push({
-        id: String(i - startLine),
-        values: rowValues,
-      });
-    }
-
-    return { name, path: relativePath, columns, rows };
-  }
-
-  // Return empty structure if parsing fails
   return {
     name,
     path: relativePath,
-    columns: [],
-    rows: [],
+    columns,
+    rows,
+    config,
   };
 }
 
@@ -339,7 +486,7 @@ export async function queryBase(
   const base = await parseBase(vaultPath, basePath);
   let rows = [...base.rows];
 
-  // Apply filter
+  // Apply additional filter (on top of base filters)
   if (options.filter) {
     rows = rows.filter((row) => {
       for (const [key, value] of Object.entries(options.filter!)) {

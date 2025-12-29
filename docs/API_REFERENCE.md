@@ -1396,7 +1396,9 @@ Create a new note from a template with variable substitution.
 
 ## Bases
 
-Tools for querying Obsidian Bases (databases). Tool group: `bases`
+Tools for querying Obsidian Bases (dynamic note views). Tool group: `bases`
+
+> **Note**: Obsidian Bases is a feature that creates dynamic views of notes based on filters. The `.base` file is a YAML configuration that defines which notes to include. The actual data comes from notes in the vault that match the filters defined in the base.
 
 ### list_bases
 
@@ -1410,10 +1412,10 @@ None required.
 
 ```json
 {
-  "count": 3,
+  "count": 2,
   "bases": [
-    { "name": "Tasks", "path": "Databases/Tasks.base" },
-    { "name": "Books", "path": "Databases/Books.base" }
+    { "name": "People", "path": "Bases/People.base" },
+    { "name": "Projects", "path": "Bases/Projects.base" }
   ]
 }
 ```
@@ -1431,7 +1433,7 @@ None required.
 
 ### get_base
 
-Get the full content of an Obsidian Base including schema and all rows.
+Get the full content of an Obsidian Base including configuration, columns, and all matching rows from notes in the vault.
 
 **Parameters**
 
@@ -1443,20 +1445,55 @@ Get the full content of an Obsidian Base including schema and all rows.
 
 ```json
 {
-  "name": "Tasks",
-  "path": "Databases/Tasks.base",
-  "columnCount": 5,
-  "rowCount": 25,
+  "name": "People",
+  "path": "Bases/People.base",
+  "columnCount": 4,
+  "rowCount": 2,
   "columns": [
-    { "name": "Task", "type": "text" },
-    { "name": "Status", "type": "select" },
-    { "name": "Due Date", "type": "date" }
+    { "name": "file.name", "type": "text", "displayName": "Name" },
+    { "name": "note.tags", "type": "multi-select", "displayName": "Tags" },
+    { "name": "note.birthday", "type": "date", "displayName": "Birthday" },
+    { "name": "formula.Age", "type": "formula", "displayName": "Age" }
   ],
   "rows": [
-    { "Task": "Review PR", "Status": "In Progress", "Due Date": "2024-01-15" }
+    {
+      "id": "0",
+      "values": {
+        "file.name": "John Doe",
+        "file.path": "People/John Doe.md",
+        "tags": ["people"],
+        "birthday": "1990-05-15",
+        "formula.Age": 34
+      }
+    }
   ]
 }
 ```
+
+**How it works**
+
+The `.base` file contains a YAML configuration like:
+
+```yaml
+filters:
+  and:
+    - note.tags.contains("people")
+properties:
+  file.name:
+    displayName: Name
+  note.birthday:
+    displayName: Birthday
+formulas:
+  Age: (now() - birthday).years.floor()
+```
+
+The tool:
+1. Parses the YAML configuration
+2. Scans all notes in the vault
+3. Filters notes that match the defined filters
+4. Extracts frontmatter properties from matching notes
+5. Evaluates any formulas
+6. Returns the data as columns and rows
 
 **Example Request**
 
@@ -1464,7 +1501,7 @@ Get the full content of an Obsidian Base including schema and all rows.
 {
   "name": "get_base",
   "arguments": {
-    "path": "Databases/Tasks.base"
+    "path": "Bases/People.base"
   }
 }
 ```
@@ -1473,15 +1510,15 @@ Get the full content of an Obsidian Base including schema and all rows.
 
 ### query_base
 
-Query an Obsidian Base with filtering, sorting, and limiting.
+Query an Obsidian Base with additional filtering, sorting, and limiting on top of the base's built-in filters.
 
 **Parameters**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | path | string | Yes | - | Path to the .base file |
-| filter | object | No | - | Filter conditions as key-value pairs |
-| sortColumn | string | No | - | Column to sort by |
+| filter | object | No | - | Additional filter conditions as key-value pairs |
+| sortColumn | string | No | - | Column to sort by (e.g., "file.name", "birthday") |
 | sortOrder | string | No | "asc" | Sort order: "asc" or "desc" |
 | limit | number | No | - | Maximum rows to return |
 
@@ -1489,10 +1526,19 @@ Query an Obsidian Base with filtering, sorting, and limiting.
 
 ```json
 {
-  "path": "Databases/Tasks.base",
-  "resultCount": 5,
+  "path": "Bases/People.base",
+  "resultCount": 1,
   "rows": [
-    { "Task": "Review PR", "Status": "Done", "Due Date": "2024-01-15" }
+    {
+      "id": "0",
+      "values": {
+        "file.name": "John Doe",
+        "file.path": "People/John Doe.md",
+        "tags": ["people"],
+        "birthday": "1990-05-15",
+        "formula.Age": 34
+      }
+    }
   ]
 }
 ```
@@ -1503,14 +1549,27 @@ Query an Obsidian Base with filtering, sorting, and limiting.
 {
   "name": "query_base",
   "arguments": {
-    "path": "Databases/Tasks.base",
-    "filter": { "Status": "Done" },
-    "sortColumn": "Due Date",
+    "path": "Bases/People.base",
+    "filter": { "file.name": "John Doe" },
+    "sortColumn": "birthday",
     "sortOrder": "desc",
     "limit": 10
   }
 }
 ```
+
+**Supported Base Filters**
+
+The `.base` file can use these filter patterns:
+
+| Filter | Description |
+|--------|-------------|
+| `note.tags.contains("tag")` | Notes with a specific tag |
+| `file.name.contains("text")` | Notes with text in filename |
+| `file.folder.contains("path")` | Notes in a specific folder |
+| `!filter` | Negation (NOT) |
+
+Filters are combined with `and` (all must match) or `or` (any can match).
 
 ---
 

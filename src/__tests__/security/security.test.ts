@@ -3,7 +3,7 @@
  *
  * These tests ensure that the following security issues remain fixed:
  * 1. Symlink escape attacks (path traversal via symlinks)
- * 2. Prototype pollution via malicious JSON in .base files
+ * 2. Base file security (YAML parsing, code injection prevention)
  * 3. Config tampering via invalid vault paths
  */
 
@@ -95,95 +95,100 @@ describe('Security Tests', () => {
     });
   });
 
-  describe('Prototype Pollution Protection', () => {
-    // Note: JSON.stringify ignores __proto__ keys, so we write raw JSON strings
-    // to simulate malicious input that could come from an attacker
+  describe('Base File Security', () => {
+    // Note: Obsidian Bases now uses YAML format, parsed by gray-matter.
+    // The data comes from notes in the vault, not from the .base file itself.
+    // gray-matter handles YAML parsing safely.
 
-    it('should reject JSON with __proto__ key', async () => {
+    it('should safely parse YAML base config files', async () => {
       const { parseBase } = await import('../../services/bases-parser.js');
 
-      // Create a malicious .base file with __proto__ pollution attempt
-      // Must write raw JSON string because JSON.stringify ignores __proto__
-      const maliciousContent = '{"__proto__": {"isAdmin": true}, "columns": [{"name": "test", "type": "text"}], "rows": []}';
-
-      vol.writeFileSync(`${VAULT_PATH}/malicious.base`, maliciousContent);
-
-      await expect(parseBase(VAULT_PATH, 'malicious.base')).rejects.toThrow(
-        /malicious key "__proto__"/
-      );
-    });
-
-    it('should reject JSON with constructor key', async () => {
-      const { parseBase } = await import('../../services/bases-parser.js');
-
-      // Constructor key could be used for prototype manipulation
-      const maliciousContent = '{"constructor": {"prototype": {"isAdmin": true}}, "columns": [{"name": "test", "type": "text"}], "rows": []}';
-
-      vol.writeFileSync(`${VAULT_PATH}/malicious2.base`, maliciousContent);
-
-      await expect(parseBase(VAULT_PATH, 'malicious2.base')).rejects.toThrow(
-        /malicious key "constructor"/
-      );
-    });
-
-    it('should reject JSON with prototype key', async () => {
-      const { parseBase } = await import('../../services/bases-parser.js');
-
-      const maliciousContent = '{"prototype": {"isAdmin": true}, "columns": [{"name": "test", "type": "text"}], "rows": []}';
-
-      vol.writeFileSync(`${VAULT_PATH}/malicious3.base`, maliciousContent);
-
-      await expect(parseBase(VAULT_PATH, 'malicious3.base')).rejects.toThrow(
-        /malicious key "prototype"/
-      );
-    });
-
-    it('should reject nested prototype pollution attempts', async () => {
-      const { parseBase } = await import('../../services/bases-parser.js');
-
-      // Nested __proto__ in values
-      const maliciousContent = '{"columns": [{"name": "test", "type": "text"}], "rows": [{"id": "1", "values": {"nested": {"__proto__": {"isAdmin": true}}}}]}';
-
-      vol.writeFileSync(`${VAULT_PATH}/nested-malicious.base`, maliciousContent);
-
-      await expect(parseBase(VAULT_PATH, 'nested-malicious.base')).rejects.toThrow(
-        /malicious key "__proto__"/
-      );
-    });
-
-    it('should reject deeply nested prototype pollution', async () => {
-      const { parseBase } = await import('../../services/bases-parser.js');
-
-      // Deeply nested __proto__
-      const maliciousContent = '{"columns": [{"name": "test", "type": "text"}], "rows": [{"id": "1", "values": {"level1": {"level2": {"level3": {"__proto__": {"isAdmin": true}}}}}}]}';
-
-      vol.writeFileSync(`${VAULT_PATH}/deep-malicious.base`, maliciousContent);
-
-      await expect(parseBase(VAULT_PATH, 'deep-malicious.base')).rejects.toThrow(
-        /malicious key "__proto__"/
-      );
-    });
-
-    it('should accept valid JSON without dangerous keys', async () => {
-      const { parseBase } = await import('../../services/bases-parser.js');
-
-      const validContent = JSON.stringify({
-        columns: [
-          { name: 'title', type: 'text' },
-          { name: 'status', type: 'select' },
-        ],
-        rows: [
-          { id: '1', values: { title: 'Task 1', status: 'done' } },
-          { id: '2', values: { title: 'Task 2', status: 'pending' } },
-        ],
-      });
+      // Valid YAML base config
+      const validContent = `filters:
+  and:
+    - note.tags.contains("test")
+properties:
+  file.name:
+    displayName: Name
+`;
 
       vol.writeFileSync(`${VAULT_PATH}/valid.base`, validContent);
 
+      // Create a note that matches the filter
+      vol.writeFileSync(`${VAULT_PATH}/test-note.md`, `---
+tags:
+  - test
+---
+# Test Note
+`);
+
       const result = await parseBase(VAULT_PATH, 'valid.base');
       expect(result.name).toBe('valid');
-      expect(result.columns.length).toBe(2);
-      expect(result.rows.length).toBe(2);
+      expect(result.columns.length).toBeGreaterThan(0);
+      expect(result.rows.length).toBe(1);
+    });
+
+    it('should handle malformed YAML gracefully', async () => {
+      const { parseBase } = await import('../../services/bases-parser.js');
+
+      // Malformed YAML
+      const malformedContent = `filters:
+  and:
+    - note.tags.contains("test"
+  broken yaml here
+`;
+
+      vol.writeFileSync(`${VAULT_PATH}/malformed.base`, malformedContent);
+
+      // Should throw a parsing error, not crash
+      await expect(parseBase(VAULT_PATH, 'malformed.base')).rejects.toThrow();
+    });
+
+    it('should not execute code injection in filter strings', async () => {
+      const { parseBase } = await import('../../services/bases-parser.js');
+
+      // Attempt code injection in filter string
+      const maliciousContent = `filters:
+  and:
+    - 'process.exit(1)'
+    - 'require("child_process").exec("rm -rf /")'
+`;
+
+      vol.writeFileSync(`${VAULT_PATH}/injection.base`, maliciousContent);
+
+      // Should parse without executing the strings
+      // The code should still be running (not exited) after this
+      const result = await parseBase(VAULT_PATH, 'injection.base');
+      expect(result).toBeDefined();
+      // Note: Unrecognized filters return true (safe default to not exclude notes)
+      // The important thing is that the malicious strings were NOT executed as code
+      expect(result.name).toBe('injection');
+    });
+
+    it('should handle empty base config', async () => {
+      const { parseBase } = await import('../../services/bases-parser.js');
+
+      vol.writeFileSync(`${VAULT_PATH}/empty.base`, '');
+
+      const result = await parseBase(VAULT_PATH, 'empty.base');
+      expect(result).toBeDefined();
+      expect(result.rows.length).toBe(0);
+    });
+
+    it('should handle base config with only properties', async () => {
+      const { parseBase } = await import('../../services/bases-parser.js');
+
+      const content = `properties:
+  file.name:
+    displayName: Name
+`;
+
+      vol.writeFileSync(`${VAULT_PATH}/no-filters.base`, content);
+
+      const result = await parseBase(VAULT_PATH, 'no-filters.base');
+      expect(result).toBeDefined();
+      // No filters means no notes match
+      expect(result.rows.length).toBe(0);
     });
   });
 
@@ -312,24 +317,37 @@ describe('Security Tests', () => {
   });
 
   describe('Deep Recursion Protection', () => {
-    it('should handle deeply nested objects without stack overflow', async () => {
+    it('should handle deeply nested YAML without stack overflow', async () => {
       const { parseBase } = await import('../../services/bases-parser.js');
 
-      // Create a deeply nested object (more than 10 levels)
-      let deepObject: Record<string, unknown> = { value: 'deep' };
-      for (let i = 0; i < 15; i++) {
-        deepObject = { nested: deepObject };
-      }
-
-      const content = JSON.stringify({
-        columns: [{ name: 'data', type: 'text' }],
-        rows: [{ id: '1', values: deepObject }],
-      });
+      // Create a deeply nested YAML config
+      const content = `filters:
+  and:
+    - note.tags.contains("deep")
+properties:
+  file.name:
+    displayName: Name
+  note.level1:
+    displayName: Level 1
+`;
 
       vol.writeFileSync(`${VAULT_PATH}/deep.base`, content);
 
+      // Create a note with deeply nested frontmatter
+      vol.writeFileSync(`${VAULT_PATH}/deep-note.md`, `---
+tags:
+  - deep
+level1:
+  level2:
+    level3:
+      level4:
+        level5:
+          value: "deep nested value"
+---
+# Deep Note
+`);
+
       // Should not throw and should not cause stack overflow
-      // The recursion limit (10) will stop checking after that depth
       const result = await parseBase(VAULT_PATH, 'deep.base');
       expect(result).toBeDefined();
       expect(result.rows.length).toBe(1);

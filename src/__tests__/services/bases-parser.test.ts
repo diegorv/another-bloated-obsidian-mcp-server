@@ -1,5 +1,8 @@
 /**
  * Tests for bases parser service
+ *
+ * Obsidian Bases uses YAML config files that define filters to query notes.
+ * The data comes from notes in the vault that match the filters.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -26,26 +29,81 @@ describe('bases-parser service', () => {
     vol.reset();
     vol.fromJSON({
       [`${VAULT_PATH}/.obsidian/config.json`]: '{}',
-      [`${VAULT_PATH}/tasks.base`]: JSON.stringify({
-        columns: [
-          { name: 'title', type: 'text' },
-          { name: 'status', type: 'select' },
-          { name: 'priority', type: 'number' },
-        ],
-        rows: [
-          { id: '1', values: { title: 'Task 1', status: 'todo', priority: 1 } },
-          { id: '2', values: { title: 'Task 2', status: 'in-progress', priority: 2 } },
-          { id: '3', values: { title: 'Task 3', status: 'done', priority: 3 } },
-        ],
-      }),
-      [`${VAULT_PATH}/folder/projects.base`]: JSON.stringify([
-        { name: 'Project A', active: true, budget: 10000 },
-        { name: 'Project B', active: false, budget: 5000 },
-      ]),
-      [`${VAULT_PATH}/contacts.base`]: `| Name | Email | Phone |
-|------|-------|-------|
-| John | john@example.com | 123-456 |
-| Jane | jane@example.com | 789-012 |
+      // People base - filters by tag
+      [`${VAULT_PATH}/Bases/People.base`]: `filters:
+  and:
+    - '!file.name.contains("Template")'
+    - note.tags.contains("people")
+formulas:
+  Age: (now() - birthday).years.floor()
+properties:
+  file.name:
+    displayName: Name
+  note.tags:
+    displayName: Tags
+  note.birthday:
+    displayName: Birthday
+`,
+      // Projects base - filters by folder
+      [`${VAULT_PATH}/Bases/Projects.base`]: `filters:
+  and:
+    - file.folder.contains("Projects")
+properties:
+  file.name:
+    displayName: Project Name
+  note.status:
+    displayName: Status
+`,
+      // Notes that will be picked up by People base
+      [`${VAULT_PATH}/People/John Doe.md`]: `---
+tags:
+  - people
+birthday: 1990-05-15
+---
+# John Doe
+
+A person note.
+`,
+      [`${VAULT_PATH}/People/Jane Smith.md`]: `---
+tags:
+  - people
+  - vip
+birthday: 1985-10-20
+---
+# Jane Smith
+
+Another person.
+`,
+      [`${VAULT_PATH}/People/Template.md`]: `---
+tags:
+  - people
+  - template
+---
+# Template
+
+This should be excluded.
+`,
+      // Notes that will be picked up by Projects base
+      [`${VAULT_PATH}/Projects/Website.md`]: `---
+status: active
+priority: 1
+---
+# Website Project
+`,
+      [`${VAULT_PATH}/Projects/Mobile App.md`]: `---
+status: completed
+priority: 2
+---
+# Mobile App Project
+`,
+      // Notes that should NOT be picked up
+      [`${VAULT_PATH}/Random Note.md`]: `---
+tags:
+  - random
+---
+# Random Note
+
+Not a person or project.
 `,
     });
   });
@@ -58,17 +116,16 @@ describe('bases-parser service', () => {
     it('should list all .base files in vault', async () => {
       const bases = await listBases(VAULT_PATH);
 
-      expect(bases.length).toBe(3);
-      expect(bases.map(b => b.name)).toContain('tasks');
-      expect(bases.map(b => b.name)).toContain('projects');
-      expect(bases.map(b => b.name)).toContain('contacts');
+      expect(bases.length).toBe(2);
+      expect(bases.map(b => b.name)).toContain('People');
+      expect(bases.map(b => b.name)).toContain('Projects');
     });
 
     it('should include relative paths', async () => {
       const bases = await listBases(VAULT_PATH);
 
-      const projects = bases.find(b => b.name === 'projects');
-      expect(projects?.path).toBe('folder/projects.base');
+      const people = bases.find(b => b.name === 'People');
+      expect(people?.path).toBe('Bases/People.base');
     });
 
     it('should sort bases alphabetically', async () => {
@@ -79,7 +136,7 @@ describe('bases-parser service', () => {
     });
 
     it('should not include .obsidian folder', async () => {
-      vol.writeFileSync(`${VAULT_PATH}/.obsidian/test.base`, '{}');
+      vol.writeFileSync(`${VAULT_PATH}/.obsidian/test.base`, 'filters:\n  and: []');
 
       const bases = await listBases(VAULT_PATH);
 
@@ -88,46 +145,89 @@ describe('bases-parser service', () => {
   });
 
   describe('parseBase', () => {
-    it('should parse JSON base with columns and rows', async () => {
-      const base = await parseBase(VAULT_PATH, 'tasks.base');
+    it('should parse YAML base config with tag filter', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
 
-      expect(base.name).toBe('tasks');
-      expect(base.columns.length).toBe(3);
-      expect(base.rows.length).toBe(3);
+      expect(base.name).toBe('People');
+      expect(base.config?.filters?.and).toBeDefined();
+      expect(base.config?.filters?.and).toContain('note.tags.contains("people")');
     });
 
-    it('should parse JSON array format', async () => {
-      const base = await parseBase(VAULT_PATH, 'folder/projects.base');
+    it('should find notes matching tag filter', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
 
-      expect(base.name).toBe('projects');
+      // Should find John and Jane, but NOT Template (excluded by !file.name.contains)
       expect(base.rows.length).toBe(2);
-      expect(base.rows[0].values.name).toBe('Project A');
+      const names = base.rows.map(r => r.values['file.name']);
+      expect(names).toContain('John Doe');
+      expect(names).toContain('Jane Smith');
+      expect(names).not.toContain('Template');
     });
 
-    it('should infer column types from data', async () => {
-      const base = await parseBase(VAULT_PATH, 'folder/projects.base');
+    it('should find notes matching folder filter', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/Projects.base');
 
-      const activeColumn = base.columns.find(c => c.name === 'active');
-      const budgetColumn = base.columns.find(c => c.name === 'budget');
-
-      expect(activeColumn?.type).toBe('checkbox');
-      expect(budgetColumn?.type).toBe('number');
-    });
-
-    it('should parse markdown table format', async () => {
-      const base = await parseBase(VAULT_PATH, 'contacts.base');
-
-      expect(base.name).toBe('contacts');
-      expect(base.columns.map(c => c.name)).toContain('Name');
-      expect(base.columns.map(c => c.name)).toContain('Email');
       expect(base.rows.length).toBe(2);
+      const names = base.rows.map(r => r.values['file.name']);
+      expect(names).toContain('Website');
+      expect(names).toContain('Mobile App');
+    });
+
+    it('should include frontmatter properties in rows', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const john = base.rows.find(r => r.values['file.name'] === 'John Doe');
+      // gray-matter parses dates as Date objects
+      const birthday = john?.values['birthday'];
+      expect(birthday).toBeDefined();
+      // Check if it's a Date object or string containing the date
+      if (birthday instanceof Date) {
+        expect(birthday.toISOString()).toContain('1990-05-15');
+      } else {
+        expect(String(birthday)).toContain('1990-05-15');
+      }
+    });
+
+    it('should include tags in rows', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const jane = base.rows.find(r => r.values['file.name'] === 'Jane Smith');
+      expect(jane?.values['tags']).toContain('people');
+      expect(jane?.values['tags']).toContain('vip');
+    });
+
+    it('should evaluate age formula', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const john = base.rows.find(r => r.values['file.name'] === 'John Doe');
+      // John was born in 1990, so his age should be calculated
+      expect(john?.values['formula.Age']).toBeDefined();
+      expect(typeof john?.values['formula.Age']).toBe('number');
+    });
+
+    it('should build columns from config properties', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const fileNameColumn = base.columns.find(c => c.name === 'file.name');
+      expect(fileNameColumn?.displayName).toBe('Name');
+
+      const birthdayColumn = base.columns.find(c => c.name === 'note.birthday');
+      expect(birthdayColumn?.displayName).toBe('Birthday');
+    });
+
+    it('should include formula columns', async () => {
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const ageColumn = base.columns.find(c => c.name === 'formula.Age');
+      expect(ageColumn).toBeDefined();
+      expect(ageColumn?.type).toBe('formula');
     });
 
     it('should auto-add .base extension', async () => {
-      const base = await parseBase(VAULT_PATH, 'tasks');
+      const base = await parseBase(VAULT_PATH, 'Bases/People');
 
-      expect(base.name).toBe('tasks');
-      expect(base.rows.length).toBe(3);
+      expect(base.name).toBe('People');
+      expect(base.rows.length).toBe(2);
     });
 
     it('should throw error for non-existent base', async () => {
@@ -137,79 +237,93 @@ describe('bases-parser service', () => {
   });
 
   describe('queryBase', () => {
-    it('should return all rows without filter', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base');
+    it('should return all matching rows without additional filter', async () => {
+      const rows = await queryBase(VAULT_PATH, 'Bases/People.base');
 
-      expect(rows.length).toBe(3);
+      expect(rows.length).toBe(2);
     });
 
-    it('should filter by exact value', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base', {
-        filter: { status: 'done' },
+    it('should apply additional filter on top of base filters', async () => {
+      const rows = await queryBase(VAULT_PATH, 'Bases/People.base', {
+        filter: { 'file.name': 'John Doe' },
       });
 
       expect(rows.length).toBe(1);
-      expect(rows[0].values.title).toBe('Task 3');
+      expect(rows[0].values['file.name']).toBe('John Doe');
     });
 
-    it('should filter by regex', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base', {
-        filter: { title: /Task [12]/ },
+    it('should sort by column ascending', async () => {
+      const rows = await queryBase(VAULT_PATH, 'Bases/People.base', {
+        sort: { column: 'file.name', order: 'asc' },
       });
 
-      expect(rows.length).toBe(2);
+      expect(rows[0].values['file.name']).toBe('Jane Smith');
+      expect(rows[1].values['file.name']).toBe('John Doe');
     });
 
-    it('should sort ascending', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base', {
-        sort: { column: 'priority', order: 'asc' },
+    it('should sort by column descending', async () => {
+      const rows = await queryBase(VAULT_PATH, 'Bases/People.base', {
+        sort: { column: 'file.name', order: 'desc' },
       });
 
-      expect(rows[0].values.priority).toBe(1);
-      expect(rows[2].values.priority).toBe(3);
-    });
-
-    it('should sort descending', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base', {
-        sort: { column: 'priority', order: 'desc' },
-      });
-
-      expect(rows[0].values.priority).toBe(3);
-      expect(rows[2].values.priority).toBe(1);
+      expect(rows[0].values['file.name']).toBe('John Doe');
+      expect(rows[1].values['file.name']).toBe('Jane Smith');
     });
 
     it('should limit results', async () => {
-      const rows = await queryBase(VAULT_PATH, 'tasks.base', {
-        limit: 2,
+      const rows = await queryBase(VAULT_PATH, 'Bases/People.base', {
+        limit: 1,
       });
 
-      expect(rows.length).toBe(2);
+      expect(rows.length).toBe(1);
     });
 
     it('should combine filter, sort, and limit', async () => {
-      vol.writeFileSync(
-        `${VAULT_PATH}/many-tasks.base`,
-        JSON.stringify({
-          columns: [{ name: 'priority', type: 'number' }],
-          rows: [
-            { id: '1', values: { priority: 5 } },
-            { id: '2', values: { priority: 3 } },
-            { id: '3', values: { priority: 7 } },
-            { id: '4', values: { priority: 1 } },
-            { id: '5', values: { priority: 4 } },
-          ],
-        })
-      );
-
-      const rows = await queryBase(VAULT_PATH, 'many-tasks.base', {
-        sort: { column: 'priority', order: 'asc' },
-        limit: 3,
+      const rows = await queryBase(VAULT_PATH, 'Bases/Projects.base', {
+        sort: { column: 'status', order: 'asc' },
+        limit: 1,
       });
 
-      expect(rows.length).toBe(3);
-      expect(rows[0].values.priority).toBe(1);
-      expect(rows[1].values.priority).toBe(3);
-      expect(rows[2].values.priority).toBe(4);
+      expect(rows.length).toBe(1);
+      expect(rows[0].values['status']).toBe('active');
+    });
+  });
+
+  describe('filter evaluation', () => {
+    it('should handle negation filter (!)', async () => {
+      // The People base has '!file.name.contains("Template")'
+      const base = await parseBase(VAULT_PATH, 'Bases/People.base');
+
+      const names = base.rows.map(r => r.values['file.name']);
+      expect(names).not.toContain('Template');
+    });
+
+    it('should handle OR filters', async () => {
+      vol.writeFileSync(`${VAULT_PATH}/Bases/OrTest.base`, `filters:
+  or:
+    - note.tags.contains("vip")
+    - note.tags.contains("random")
+`);
+
+      const base = await parseBase(VAULT_PATH, 'Bases/OrTest.base');
+
+      // Should find Jane (vip) and Random Note (random)
+      expect(base.rows.length).toBe(2);
+      const names = base.rows.map(r => r.values['file.name']);
+      expect(names).toContain('Jane Smith');
+      expect(names).toContain('Random Note');
+    });
+
+    it('should return empty if no filters defined', async () => {
+      vol.writeFileSync(`${VAULT_PATH}/Bases/NoFilter.base`, `properties:
+  file.name:
+    displayName: Name
+`);
+
+      const base = await parseBase(VAULT_PATH, 'Bases/NoFilter.base');
+
+      // No filters means no notes match (safer default)
+      expect(base.rows.length).toBe(0);
     });
   });
 });

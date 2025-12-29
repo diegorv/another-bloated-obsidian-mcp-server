@@ -29,7 +29,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with secure ac
 - **Link analysis** - Backlinks, outlinks, orphans, broken links, link graph
 - **Daily notes** - Create and manage daily journal entries
 - **Templates** - Apply templates with variable substitution
-- **Obsidian Bases** - Query Obsidian's database files
+- **Obsidian Bases** - Query dynamic note views based on filters
 - **Batch operations** - Process multiple notes efficiently
 - **Attachment tracking** - List and find unused attachments
 - **Backup system** - Create and restore note backups

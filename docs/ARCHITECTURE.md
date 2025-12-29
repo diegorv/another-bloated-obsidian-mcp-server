@@ -164,7 +164,7 @@ Services contain business logic and are called by tool handlers:
 | `link-analyzer.ts` | Backlinks, orphans, link graph |
 | `daily-notes.ts` | Daily note creation/management |
 | `template-engine.ts` | Template variable substitution |
-| `bases-parser.ts` | Obsidian Bases file parsing |
+| `bases-parser.ts` | Obsidian Bases YAML config parsing and note filtering |
 
 ### Utilities Layer (src/utils/*.ts)
 
