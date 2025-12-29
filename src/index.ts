@@ -112,11 +112,13 @@ import {
   handleBatchUpdateFrontmatter,
   handleBatchAddTag,
   handleBatchRemoveTag,
+  handleBatchRead,
   batchMoveSchema,
   batchDeleteSchema,
   batchUpdateFrontmatterSchema,
   batchAddTagSchema,
   batchRemoveTagSchema,
+  batchReadSchema,
   batchTools,
 } from './tools/batch.js';
 import {
@@ -370,6 +372,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case 'batch_remove_tag':
       return handleBatchRemoveTag(batchRemoveTagSchema.parse(args));
+
+    case 'batch_read_notes':
+      return handleBatchRead(batchReadSchema.parse(args));
 
     // Attachment tools
     case 'list_attachments':

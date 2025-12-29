@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 import { getActiveVaultPath } from '../services/vault-manager.js';
 import { validatePath, ensureMarkdownExtension } from '../utils/path.js';
 import { formatError } from '../utils/errors.js';
-import { moveNote, deleteNote, renameNote } from '../services/filesystem.js';
+import { moveNote, deleteNote, renameNote, readNote } from '../services/filesystem.js';
 import matter from 'gray-matter';
 
 // Schema definitions
@@ -36,6 +36,12 @@ export const batchAddTagSchema = z.object({
 export const batchRemoveTagSchema = z.object({
   paths: z.array(z.string()).describe('Array of note paths'),
   tags: z.array(z.string()).describe('Tags to remove (without # prefix)'),
+});
+
+export const batchReadSchema = z.object({
+  paths: z.array(z.string()).max(10).describe('Array of note paths to read (max 10)'),
+  includeContent: z.boolean().optional().default(true).describe('Include note content in response'),
+  includeFrontmatter: z.boolean().optional().default(true).describe('Include parsed frontmatter in response'),
 });
 
 // Helper types
@@ -392,6 +398,80 @@ export async function handleBatchRemoveTag(args: z.infer<typeof batchRemoveTagSc
   }
 }
 
+export async function handleBatchRead(args: z.infer<typeof batchReadSchema>) {
+  try {
+    const vaultPath = await getActiveVaultPath();
+    const results: Array<{
+      path: string;
+      success: boolean;
+      error?: string;
+      content?: string;
+      frontmatter?: Record<string, unknown>;
+    }> = [];
+    let successCount = 0;
+
+    // Apply defaults (in case called without schema.parse())
+    const includeContent = args.includeContent ?? true;
+    const includeFrontmatter = args.includeFrontmatter ?? true;
+
+    for (const notePath of args.paths) {
+      try {
+        const note = await readNote(vaultPath, notePath);
+        const result: {
+          path: string;
+          success: boolean;
+          content?: string;
+          frontmatter?: Record<string, unknown>;
+        } = {
+          path: notePath,
+          success: true,
+        };
+
+        if (includeContent) {
+          result.content = note.content;
+        }
+        if (includeFrontmatter) {
+          result.frontmatter = note.frontmatter;
+        }
+
+        results.push(result);
+        successCount++;
+      } catch (error) {
+        results.push({
+          path: notePath,
+          success: false,
+          error: formatError(error),
+        });
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: successCount === args.paths.length,
+            total: args.paths.length,
+            succeeded: successCount,
+            failed: args.paths.length - successCount,
+            results,
+          }, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ success: false, error: formatError(error) }),
+        },
+      ],
+      isError: true,
+    };
+  }
+}
+
 // Tool definitions for MCP
 export const batchTools = [
   {
@@ -499,6 +579,32 @@ export const batchTools = [
         },
       },
       required: ['paths', 'tags'],
+    },
+  },
+  {
+    name: 'batch_read_notes',
+    description: 'Read multiple notes at once (max 10). Returns content and frontmatter for each note.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          maxItems: 10,
+          description: 'Array of note paths to read (max 10)',
+        },
+        includeContent: {
+          type: 'boolean',
+          description: 'Include note content in response (default: true)',
+          default: true,
+        },
+        includeFrontmatter: {
+          type: 'boolean',
+          description: 'Include parsed frontmatter in response (default: true)',
+          default: true,
+        },
+      },
+      required: ['paths'],
     },
   },
 ];

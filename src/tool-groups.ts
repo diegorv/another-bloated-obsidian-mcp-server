@@ -134,6 +134,7 @@ const toolToGroupMap: Record<string, ToolGroup> = {
   batch_update_frontmatter: 'batch',
   batch_add_tag: 'batch',
   batch_remove_tag: 'batch',
+  batch_read_notes: 'batch',
   // Attachments
   list_attachments: 'attachments',
   get_attachment_info: 'attachments',
@@ -244,7 +245,7 @@ Available tool groups:
   daily       - Daily notes (get_daily_note, create_daily_note, list_daily_notes, append_to_daily)
   templates   - Templates (list_templates, get_template, apply_template, create_from_template)
   bases       - Obsidian Bases (list_bases, get_base, query_base)
-  batch       - Batch operations (batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag)
+  batch       - Batch operations (batch_move, batch_delete, batch_update_frontmatter, batch_add_tag, batch_remove_tag, batch_read_notes)
   attachments - Attachment management (list_attachments, get_attachment_info, find_unused_attachments, get_attachments_in_note)
   backup      - Backup system (create_note_backup, list_backups, restore_backup, delete_old_backups)
 

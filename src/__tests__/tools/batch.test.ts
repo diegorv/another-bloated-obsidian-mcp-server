@@ -10,11 +10,13 @@ import {
   handleBatchUpdateFrontmatter,
   handleBatchAddTag,
   handleBatchRemoveTag,
+  handleBatchRead,
   batchMoveSchema,
   batchDeleteSchema,
   batchUpdateFrontmatterSchema,
   batchAddTagSchema,
   batchRemoveTagSchema,
+  batchReadSchema,
   batchTools,
 } from '../../tools/batch.js';
 import { clearActiveVault } from '../../services/vault-manager.js';
@@ -154,17 +156,36 @@ tags:
       })).not.toThrow();
       expect(() => batchRemoveTagSchema.parse({ paths: ['note1.md'] })).toThrow();
     });
+
+    it('batchReadSchema should require paths', () => {
+      expect(() => batchReadSchema.parse({
+        paths: ['note1.md'],
+      })).not.toThrow();
+      expect(() => batchReadSchema.parse({})).toThrow();
+    });
+
+    it('batchReadSchema should have defaults for include options', () => {
+      const parsed = batchReadSchema.parse({ paths: ['note1.md'] });
+      expect(parsed.includeContent).toBe(true);
+      expect(parsed.includeFrontmatter).toBe(true);
+    });
+
+    it('batchReadSchema should enforce max 10 paths', () => {
+      const paths = Array.from({ length: 11 }, (_, i) => `note${i}.md`);
+      expect(() => batchReadSchema.parse({ paths })).toThrow();
+    });
   });
 
   describe('batchTools', () => {
-    it('should define 5 batch tools', () => {
-      expect(batchTools.length).toBe(5);
+    it('should define 6 batch tools', () => {
+      expect(batchTools.length).toBe(6);
       const names = batchTools.map(t => t.name);
       expect(names).toContain('batch_move');
       expect(names).toContain('batch_delete');
       expect(names).toContain('batch_update_frontmatter');
       expect(names).toContain('batch_add_tag');
       expect(names).toContain('batch_remove_tag');
+      expect(names).toContain('batch_read_notes');
     });
   });
 
@@ -400,6 +421,86 @@ tags:
       const data = JSON.parse(result.content[0].text);
       expect(data.succeeded).toBe(1);
       expect(data.results[0].details.removedTags).toContain('prefixed-remove');
+    });
+  });
+
+  describe('handleBatchRead', () => {
+    it('should read multiple notes', async () => {
+      const result = await handleBatchRead({
+        paths: ['note1.md', 'note2.md'],
+      });
+
+      expect(result.isError).toBeUndefined();
+      const data = JSON.parse(result.content[0].text);
+      expect(data.succeeded).toBe(2);
+      expect(data.failed).toBe(0);
+      expect(data.results.length).toBe(2);
+    });
+
+    it('should include content and frontmatter by default', async () => {
+      const result = await handleBatchRead({
+        paths: ['note1.md'],
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.results[0].content).toBeDefined();
+      expect(data.results[0].frontmatter).toBeDefined();
+      expect(data.results[0].frontmatter.title).toBe('Note 1');
+    });
+
+    it('should exclude content when includeContent=false', async () => {
+      const result = await handleBatchRead({
+        paths: ['note1.md'],
+        includeContent: false,
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.results[0].content).toBeUndefined();
+      expect(data.results[0].frontmatter).toBeDefined();
+    });
+
+    it('should exclude frontmatter when includeFrontmatter=false', async () => {
+      const result = await handleBatchRead({
+        paths: ['note1.md'],
+        includeFrontmatter: false,
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.results[0].content).toBeDefined();
+      expect(data.results[0].frontmatter).toBeUndefined();
+    });
+
+    it('should handle partial failures', async () => {
+      const result = await handleBatchRead({
+        paths: ['note1.md', 'nonexistent.md'],
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.succeeded).toBe(1);
+      expect(data.failed).toBe(1);
+      expect(data.success).toBe(false);
+      expect(data.results[1].error).toBeDefined();
+    });
+
+    it('should read notes from nested folders', async () => {
+      const result = await handleBatchRead({
+        paths: ['folder/nested.md'],
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.succeeded).toBe(1);
+      expect(data.results[0].frontmatter).toBeDefined();
+      expect(data.results[0].content).toContain('Nested Note');
+    });
+
+    it('should read notes without frontmatter', async () => {
+      const result = await handleBatchRead({
+        paths: ['note3.md'],
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.succeeded).toBe(1);
+      expect(data.results[0].content).toContain('No frontmatter');
     });
   });
 });
