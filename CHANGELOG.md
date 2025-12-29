@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.1.0...v1.1.1) (2025-12-29)
+
+
+### Bug Fixes
+
+* rename INDEX.md to index.md for GitHub Pages compatibility ([06fdc65](https://github.com/diegorv/another-bloated-obsidian-mcp-server/commit/06fdc653e6ddc57d4d1aadb528785e00c514b637))
+
 ## [1.1.0](https://github.com/diegorv/another-bloated-obsidian-mcp-server/compare/v1.0.0...v1.1.0) (2025-12-29)
 
 
