@@ -1,5 +1,21 @@
 # Obsidian MCP Server
 
+> [!CAUTION]
+> **🔴🔴🔴 EXPERIMENTAL PROJECT - DO NOT USE IN PRODUCTION 🔴🔴🔴**
+>
+> This is an experimental project created primarily through AI-assisted development using Claude Code, with minimal human intervention. It is intended solely for testing and learning purposes.
+>
+> **This project should NOT be used for:**
+> - Production environments
+> - Critical data or important vaults
+> - Any scenario where data integrity is essential
+>
+> Use at your own risk. The code may contain bugs, security vulnerabilities, or unexpected behaviors.
+>
+> **Support notice:** This project will likely not receive attention for bugs or issues reported by third parties. If you're interested in contributing or reporting issues, you may not get a response as this project may not be maintained long-term. However, this could change after the experimentation phase.
+
+---
+
 A Model Context Protocol (MCP) server that provides AI assistants with secure access to Obsidian vaults. Enables reading, writing, searching, and managing notes without requiring Obsidian to be running.
 
 ## Features
@@ -278,6 +294,10 @@ This server implements multiple security measures:
 - **Reserved name blocking** - Prevents system file conflicts
 
 See [SECURITY.md](docs/SECURITY.md) for details.
+
+## Inspiration
+
+This project is inspired by [mcp-obsidian](https://mcp-obsidian.org/).
 
 ## License
 
