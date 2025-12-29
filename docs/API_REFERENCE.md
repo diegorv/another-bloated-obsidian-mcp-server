@@ -1433,7 +1433,7 @@ None required.
 
 ### get_base
 
-Get the full content of an Obsidian Base including configuration, columns, and all matching rows from notes in the vault.
+Get the full content of an Obsidian Base including configuration, columns, all matching rows, summaries, and views.
 
 **Parameters**
 
@@ -1461,11 +1461,24 @@ Get the full content of an Obsidian Base including configuration, columns, and a
       "values": {
         "file.name": "John Doe",
         "file.path": "People/John Doe.md",
+        "file.folder": "People",
+        "file.ext": "md",
+        "file.size": 1024,
+        "file.ctime": "2024-01-01T00:00:00.000Z",
+        "file.mtime": "2024-01-15T10:30:00.000Z",
+        "file.links": ["Projects/Work.md"],
+        "file.embeds": [],
         "tags": ["people"],
         "birthday": "1990-05-15",
         "formula.Age": 34
       }
     }
+  ],
+  "summaries": [
+    { "column": "formula.Age", "type": "Average", "value": 34 }
+  ],
+  "views": [
+    { "type": "table", "name": "All People", "limit": 100 }
   ]
 }
 ```
@@ -1485,6 +1498,12 @@ properties:
     displayName: Birthday
 formulas:
   Age: (now() - birthday).years.floor()
+summaries:
+  formula.Age: Average
+views:
+  - type: table
+    name: "All People"
+    limit: 100
 ```
 
 The tool:
@@ -1492,8 +1511,9 @@ The tool:
 2. Scans all notes in the vault
 3. Filters notes that match the defined filters
 4. Extracts frontmatter properties from matching notes
-5. Evaluates any formulas
-6. Returns the data as columns and rows
+5. Evaluates any formulas using the full expression parser
+6. Calculates summaries (aggregations)
+7. Returns the data as columns, rows, summaries, and views
 
 **Example Request**
 
@@ -1558,18 +1578,252 @@ Query an Obsidian Base with additional filtering, sorting, and limiting on top o
 }
 ```
 
-**Supported Base Filters**
+---
 
-The `.base` file can use these filter patterns:
+### Expression Parser
 
-| Filter | Description |
-|--------|-------------|
-| `note.tags.contains("tag")` | Notes with a specific tag |
-| `file.name.contains("text")` | Notes with text in filename |
-| `file.folder.contains("path")` | Notes in a specific folder |
-| `!filter` | Negation (NOT) |
+The Bases tools include a powerful expression parser that supports complex filters and formulas.
+
+#### Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `==`, `=` | Equality | `status == "active"` |
+| `!=` | Inequality | `status != "done"` |
+| `>`, `>=`, `<`, `<=` | Comparison | `priority > 5` |
+| `&&`, `and` | Logical AND | `status == "active" && priority > 3` |
+| `\|\|`, `or` | Logical OR | `status == "done" \|\| status == "cancelled"` |
+| `!`, `not` | Logical NOT | `!file.name.contains("Template")` |
+| `+`, `-`, `*`, `/`, `%` | Arithmetic | `price * quantity` |
+
+#### Filter Patterns
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `note.tags.contains("tag")` | Notes with a specific tag | `note.tags.contains("people")` |
+| `file.name.contains("text")` | Notes with text in filename | `file.name.contains("Template")` |
+| `file.folder.contains("path")` | Notes in a specific folder | `file.folder.contains("Projects")` |
+| `property == value` | Property equals value | `status == "active"` |
+| `property > value` | Numeric/date comparison | `priority > 3` |
+| `file.hasTag("tag")` | Check if file has tag | `file.hasTag("project")` |
+| `file.inFolder("path")` | Check if in folder | `file.inFolder("Projects")` |
+| `file.hasProperty("name")` | Check if has property | `file.hasProperty("status")` |
+| `file.hasLink("path")` | Check if links to file | `file.hasLink("Index.md")` |
+| `file.mtime > now() - "7d"` | Date comparison | Modified in last 7 days |
+| `/pattern/.matches(value)` | Regex matching | `/^Project/.matches(file.name)` |
 
 Filters are combined with `and` (all must match) or `or` (any can match).
+
+#### File Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `file.name` | string | File name without extension |
+| `file.path` | string | Relative path from vault root |
+| `file.folder` | string | Parent folder path |
+| `file.ext` | string | File extension (without dot) |
+| `file.basename` | string | File name without path or extension |
+| `file.size` | number | File size in bytes |
+| `file.ctime` | Date | Creation time |
+| `file.mtime` | Date | Last modification time |
+| `file.tags` | List | Tags from frontmatter and content |
+| `file.links` | List | Outgoing wiki links |
+| `file.embeds` | List | Embedded content references |
+
+#### Global Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `now()` | Current date/time | `now()` |
+| `today()` | Today at midnight | `today()` |
+| `date("string")` | Parse date string | `date("2024-01-15")` |
+| `if(cond, true, false)` | Conditional | `if(status == "done", "✓", "")` |
+| `min(...values)` | Minimum value | `min(1, 2, 3)` |
+| `max(...values)` | Maximum value | `max(1, 2, 3)` |
+| `number(value)` | Convert to number | `number("42")` |
+| `list(...values)` | Create list | `list(1, 2, 3)` |
+| `link(path, display?)` | Create link | `link("note.md", "My Note")` |
+| `duration("string")` | Parse duration | `duration("7d")` |
+| `file(path)` | Create File object | `file("folder/note.md")` |
+| `image(path)` | Create Image object | `image("img.png")` |
+| `icon(name)` | Create Icon (Lucide) | `icon("star")` |
+| `html(content)` | Create HTML object | `html("<b>bold</b>")` |
+| `escapeHTML(str)` | Escape HTML chars | `escapeHTML("<script>")` |
+
+#### Date Arithmetic
+
+| Operation | Description | Example |
+|-----------|-------------|---------|
+| `date + "duration"` | Add duration | `today() + "7d"` |
+| `date - "duration"` | Subtract duration | `now() - "1M"` |
+| `date1 - date2` | Difference (ms) | `now() - file.ctime` |
+| `(diff).years` | Convert to years | `(now() - birthday).years` |
+| `(diff).days` | Convert to days | `(now() - file.mtime).days` |
+
+**Duration units**: `y`/years, `M`/months, `w`/weeks, `d`/days, `h`/hours, `m`/minutes, `s`/seconds
+
+#### String Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `str.contains("value")` | Contains substring | `name.contains("John")` |
+| `str.startsWith("prefix")` | Starts with | `name.startsWith("Dr.")` |
+| `str.endsWith("suffix")` | Ends with | `file.name.endsWith("_draft")` |
+| `str.lower()` | Lowercase | `name.lower()` |
+| `str.upper()` | Uppercase | `name.upper()` |
+| `str.trim()` | Remove whitespace | `name.trim()` |
+| `str.replace("a", "b")` | Replace text | `status.replace("_", " ")` |
+| `str.split(",")` | Split to list | `tags.split(",")` |
+| `str.length` | String length | `name.length` |
+
+#### Number Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `num.abs()` | Absolute value | `(-5).abs()` |
+| `num.ceil()` | Round up | `(4.2).ceil()` |
+| `num.floor()` | Round down | `(4.8).floor()` |
+| `num.round(digits?)` | Round | `(4.567).round(2)` |
+| `num.toFixed(digits)` | Format decimal | `(4.5).toFixed(2)` |
+
+#### List Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `list.contains(value)` | Contains element | `tags.contains("important")` |
+| `list.join(",")` | Join to string | `tags.join(", ")` |
+| `list.sort()` | Sort list | `tags.sort()` |
+| `list.reverse()` | Reverse list | `items.reverse()` |
+| `list.unique()` | Remove duplicates | `tags.unique()` |
+| `list.first()` | First element | `tags.first()` |
+| `list.last()` | Last element | `tags.last()` |
+| `list.length` | List length | `tags.length` |
+
+#### Link Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `link.asFile()` | Convert to File object | `myLink.asFile()` |
+| `link.linksTo(file)` | Check if links to file | `myLink.linksTo("note.md")` |
+
+#### Object Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `obj.isEmpty()` | Check if empty | `metadata.isEmpty()` |
+| `obj.keys()` | Get list of keys | `metadata.keys()` |
+| `obj.values()` | Get list of values | `metadata.values()` |
+| `obj.hasKey(key)` | Check if has key | `metadata.hasKey("status")` |
+
+#### Type Checking
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `value.toString()` | Convert to string | `(42).toString()` |
+| `value.isTruthy()` | Check if truthy | `status.isTruthy()` |
+| `value.isType("type")` | Check type | `value.isType("string")` |
+
+Type names: `string`, `number`, `boolean`, `date`, `list`, `array`, `object`, `null`, `undefined`, `link`, `regex`, `file`, `image`, `icon`, `html`
+
+---
+
+### Summaries (Aggregations)
+
+Bases can include summaries to aggregate column values:
+
+```yaml
+summaries:
+  price: Average
+  quantity: Sum
+  due_date: Earliest
+```
+
+**Built-in Summary Types**
+
+| Summary | Input Type | Description |
+|---------|------------|-------------|
+| `Average` | Number | Mean of all values |
+| `Min` | Number | Smallest value |
+| `Max` | Number | Largest value |
+| `Sum` | Number | Total of all values |
+| `Range` | Number | Max - Min |
+| `Median` | Number | Middle value |
+| `Stddev` | Number | Standard deviation |
+| `Earliest` | Date | Oldest date |
+| `Latest` | Date | Most recent date |
+| `Checked` | Boolean | Count of true values |
+| `Unchecked` | Boolean | Count of false values |
+| `Count` | Any | Total number of values |
+| `Empty` | Any | Count of empty values |
+| `Filled` | Any | Count of non-empty values |
+| `Unique` | Any | Count of unique values |
+
+---
+
+### Views Configuration
+
+Bases can define multiple views with different filters, sorting, and display options:
+
+```yaml
+views:
+  - type: table
+    name: "Active Tasks"
+    limit: 10
+    filters:
+      and:
+        - 'status != "done"'
+    sort:
+      - property: priority
+        direction: DESC
+      - property: due_date
+        direction: ASC
+    groupBy:
+      property: status
+      direction: ASC
+    summaries:
+      priority: Average
+```
+
+**View Properties**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | View type: `table`, `cards`, `list`, `map` |
+| `name` | string | Display name for the view |
+| `limit` | number | Maximum rows to show |
+| `filters` | object | Additional filters (same syntax as base filters) |
+| `order` | string[] | Column display order |
+| `sort` | array | Sort configuration |
+| `groupBy` | object | Group rows by property |
+| `summaries` | object | View-specific summaries |
+
+---
+
+### Formula Examples
+
+```yaml
+formulas:
+  # Calculate age from birthday
+  Age: (now() - birthday).years.floor()
+
+  # Days since last modified
+  DaysSinceModified: (now() - file.mtime).days.floor()
+
+  # Concatenate strings
+  FullName: firstName + " " + lastName
+
+  # Check if overdue
+  IsOverdue: due_date < today()
+
+  # Conditional formatting
+  Priority: if(urgent, "🔴 High", "🟢 Normal")
+
+  # Count tags
+  TagCount: tags.length
+
+  # Check with regex
+  IsTemplate: /^Template/.matches(file.name)
+```
 
 ---
 
